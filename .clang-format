@@ -1,0 +1,34 @@
+# ==============================================================================
+#  Selective Pet Access - Firmware Code Style
+#  Based on Google Style but optimized for Modern C++ and 4-space indentation.
+# ==============================================================================
+Language: Cpp
+BasedOnStyle: Google
+
+# --- Indentation & Spacing ---
+AccessModifierOffset: -4      # public/private flush with class
+IndentWidth: 4                # 4 spaces is standard for C/C++ readability
+TabWidth: 4
+UseTab: Never                 # Tabs are evil. Always use spaces.
+# ColumnLimit: 120              # 80 is too narrow for verbose HAL/Templates
+
+# --- Pointers & References ---
+# Modern C++ prefers the type to carry the pointer (int* p), not the variable.
+PointerAlignment: Left
+
+# --- Breaking & Wrapping ---
+# Keep empty functions on one line (good for mocked interfaces)
+AllowShortFunctionsOnASingleLine: Empty
+# Keep simple 'if (x) return;' on one line? No. Force explicit logic.
+AllowShortIfStatementsOnASingleLine: Never
+# Break before inheritance lists (cleaner constructors)
+BreakConstructorInitializers: BeforeComma
+
+# --- Sorting ---
+# Automatically sort #include headers (System -> Library -> Local)
+SortIncludes: true
+
+# --- C++20 Specifics ---
+# Align concepts and requires clauses beautifully
+IndentRequiresClause: true
+BreakBeforeConceptDeclarations: true

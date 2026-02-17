@@ -1,0 +1,37 @@
+{
+    "name": "ESP-IDF v5.3 Dev Env",
+    "image": "espressif/idf:release-v5.3",
+    "containerEnv": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "idf.espIdfPath": "/opt/esp/idf",
+                "idf.toolsPath": "/opt/esp/tools",
+                "idf.pythonBinPath": "/opt/esp/python_env/idf5.3_py3.10_env/bin/python"
+            },
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "espressif.esp-idf-extension",
+                "matepek.vscode-catch2-test-adapter" 
+            ]
+        }
+    },
+    "runArgs": [
+        "--privileged",         // Required for USB JTAG access
+        "--device=/dev/ttyACM0" // Map USB device
+    ],
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "workspaceFolder": "/workspace",
+    "postCreateCommand": "echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
+}
+
+/*
+*  Why this works: It pulls the image directly from Espressif.
+*  No manual installation of Python or GCC is required.
+*  It guarantees that anyone opening this repo gets the exact same toolchain.
+*/
