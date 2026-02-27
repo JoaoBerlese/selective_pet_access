@@ -10,7 +10,7 @@ AccessModifierOffset: -4      # public/private flush with class
 IndentWidth: 4                # 4 spaces is standard for C/C++ readability
 TabWidth: 4
 UseTab: Never                 # Tabs are evil. Always use spaces.
-# ColumnLimit: 120              # 80 is too narrow for verbose HAL/Templates
+ColumnLimit: 120              # 80 is too narrow for verbose HAL/Templates
 
 # --- Pointers & References ---
 # Modern C++ prefers the type to carry the pointer (int* p), not the variable.
@@ -23,6 +23,14 @@ AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 # Break before inheritance lists (cleaner constructors)
 BreakConstructorInitializers: BeforeComma
+
+# --- Function Calls & Parameters ---
+# Prevent aligning to the open parenthesis, use a standard block indent instead
+AlignAfterOpenBracket: BlockIndent
+# If arguments don't fit on one line, force them all to their own lines
+BinPackArguments: false
+# Same rule as above, but for function declarations/definitions
+BinPackParameters: false
 
 # --- Sorting ---
 # Automatically sort #include headers (System -> Library -> Local)

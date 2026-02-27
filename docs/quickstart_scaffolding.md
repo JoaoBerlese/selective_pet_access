@@ -15,7 +15,7 @@ This document contains a shell script to automatically generate all required con
 # ==============================================================================
 # 1. Git Ignore Rules
 # ==============================================================================
-cat <<EOF > .gitignore
+cat << 'EOF' > .gitignore
 # ==============================================================================
 # ESP-IDF & Build Artifacts
 # ==============================================================================
@@ -103,7 +103,7 @@ EOF
 # ==============================================================================
 # 2. Container Definition (The Machine)
 # ==============================================================================
-cat <<EOF > .devcontainer/devcontainer.json
+cat << 'EOF' > .devcontainer/devcontainer.json
 {
     "name": "ESP-IDF v5.3 Dev Env",
     "image": "espressif/idf:release-v5.3",
@@ -146,7 +146,7 @@ EOF
 # ==============================================================================
 # 3. Build System (CMake & C++20)
 # ==============================================================================
-cat <<EOF > CMakeLists.txt
+cat << 'EOF' > CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
 
 # Enforce Modern C++ Standards
@@ -158,12 +158,12 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(selective_pet_access)
 EOF
 
-cat <<EOF > main/CMakeLists.txt
+cat << 'EOF' > main/CMakeLists.txt
 idf_component_register(SRCS "main.cpp"
                        INCLUDE_DIRS ".")
 EOF
 
-cat <<EOF > main/main.cpp
+cat << 'EOF' > main/main.cpp
 #include <cstdio>
 
 #include "esp_log.h"
@@ -188,7 +188,7 @@ EOF
 # ==============================================================================
 # 4. Hardware Architecture (Layout & S3 Config)
 # ==============================================================================
-cat <<EOF > sdkconfig.defaults
+cat << 'EOF' > sdkconfig.defaults
 # This file was generated using idf.py save-defconfig. It can be edited manually.
 # Espressif IoT Development Framework (ESP-IDF) 5.3.4 Project Minimal Configuration
 #
@@ -200,7 +200,7 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 EOF
 
-cat <<EOF > partitions.csv
+cat << 'EOF' > partitions.csv
 # Name,   Type, SubType, Offset,  Size, Flags
 nvs,      data, nvs,     ,        0x6000,
 otadata,  data, ota,     ,        0x2000,
@@ -216,7 +216,7 @@ EOF
 # ==============================================================================
 # 5. IDE Tooling (VS Code & Clang-Format)
 # ==============================================================================
-cat <<EOF > .clang-format
+cat << 'EOF' > .clang-format
 # ==============================================================================
 #  Selective Pet Access - Firmware Code Style
 #  Based on Google Style but optimized for Modern C++ and 4-space indentation.
@@ -253,7 +253,7 @@ IndentRequiresClause: true
 BreakBeforeConceptDeclarations: true
 EOF
 
-cat <<EOF > .vscode/settings.json
+cat << 'EOF' > .vscode/settings.json
 {
     // ========================================================================
     //  Selective Pet Access - Workspace Settings
@@ -287,7 +287,7 @@ cat <<EOF > .vscode/settings.json
 }
 EOF
 
-cat <<EOF > .vscode/launch.json
+cat << 'EOF' > .vscode/launch.json
 {
     "version": "0.2.0",
     "configurations": [
@@ -306,5 +306,20 @@ cat <<EOF > .vscode/launch.json
             ]
         }
     ]
+}
+EOF
+
+cat << 'EOF' > .vscode/c_cpp_properties.json
+{
+    "configurations": [
+        {
+            "name": "ESP-IDF",
+            "compilerPath": "",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "cStandard": "c11",
+            "cppStandard": "c++20"
+        }
+    ],
+    "version": 4
 }
 EOF

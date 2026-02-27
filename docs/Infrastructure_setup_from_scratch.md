@@ -78,6 +78,7 @@ selective_pet_access/
 ├── .devcontainer/          # Docker Environment Definition
 │   └── devcontainer.json
 ├── .vscode/                # IDE Settings (Debug/Linting)
+│   ├── c_cpp_properties.json
 │   ├── settings.json
 │   └── launch.json
 ├── components/             # Custom Hardware Abstraction Layers (HAL)
@@ -445,7 +446,24 @@ BreakBeforeConceptDeclarations: true
         }
     ]
 }
+```
 
+**File:** `.vscode/c_cpp_properties.json`
+*(Critical: This permanently links VS Code's IntelliSense to the CMake build tree, preventing red squiggles and desyncs when the DevContainer restarts).*
+
+```json
+{
+    "configurations": [
+        {
+            "name": "ESP-IDF",
+            "compilerPath": "",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "cStandard": "c11",
+            "cppStandard": "c++20"
+        }
+    ],
+    "version": 4
+}
 ```
 
 ---
@@ -458,14 +476,13 @@ BreakBeforeConceptDeclarations: true
     * VS Code will ask to select a "Kit" (Compiler).
     * **Select `[Unspecified]`**.
     * *Reason:* We must allow `idf.py` to manage the cross-compiler toolchain. Do not let CMake Tools override this with the host GCC.
-4. **USB Check:**
-    Before compiling, ensure the container can see the hardware.
-    * Open Terminal (inside container).
-    * Run `ls /dev/ttyACM*`.
-    * **Success:** Returns `/dev/ttyACM0`. Proceed to Build & Flash.
-    * **Failure:** Returns `No such file or directory`.
-        * *Cause:* The device was not plugged in when the container started.
-        * *The Fix:* Plug in device, `F1` -> **Dev Containers: Rebuild Container**, run the `ls /dev/ttyACM*` command again.
+4. **USB Check & IntelliSense Sync:**
+    Before compiling, ensure the container and the IDE can see the hardware.
+    * Open Terminal (inside container) and run: `ls /dev/ttyACM*`.
+    * **Success:** Returns `/dev/ttyACM0`. Proceed to Build.
+    * **Failure:** Returns `No such file or directory` or IntelliSense fails to clear red squiggles.
+        * *Cause:* The device was not plugged in when the container started, or the IDE lost the CMake mapping.
+        * *The Fix:* **Do not rebuild the container!** Plug in the device, ensure Linux sees it (`ls /dev/ttyACM*`), then press `F1` -> **Developer: Reload Window**. This takes 2 seconds and restores the USB mapping and IntelliSense caches.
 5. **Build & Flash:**
 ```bash
 # Apply defaults and build
