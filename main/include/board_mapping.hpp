@@ -10,9 +10,10 @@
 
 #pragma once
 
-#include <cstdint>
+#include <driver/i2c_types.h>  // Gives us access to i2c_port_num_t
+#include <hal/gpio_types.h>    // Gives us access to gpio_num_t
 
-#include "hal/gpio_types.h"  // Gives us access to gpio_num_t
+#include <cstdint>
 
 namespace pet_access::board {
 
@@ -31,8 +32,8 @@ constexpr uint32_t LED_RMT_RES_HZ = 10'000'000;
 // =============================================================================
 // Sensors (I2C)
 // =============================================================================
-// constexpr gpio_num_t PIN_BTN_USER   = GPIO_NUM_0;
-// constexpr gpio_num_t PIN_I2C_SDA    = GPIO_NUM_5;
-// constexpr gpio_num_t PIN_I2C_SCL    = GPIO_NUM_6;
+constexpr i2c_port_t I2C_PORT = I2C_NUM_0;
+constexpr gpio_num_t I2C_SDA_PIN = GPIO_NUM_1;
+constexpr gpio_num_t I2C_SCL_PIN = GPIO_NUM_2;
 
 }  // namespace pet_access::board

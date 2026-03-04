@@ -1,9 +1,12 @@
+// C++ Standard Library
 #include <cstdio>
-
+// ESP-IDF Framework & FreeRTOS
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+// Local Project Dependencies
+#include "I2CMasterBus.hpp"
 #include "board_mapping.hpp"
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
 
@@ -17,22 +20,22 @@ namespace pet_access::core {
 class SystemController {
 public:
     // The constructor initializes all subsystems via RAII
-    SystemController() : status_led_(led_config_) {}
+    SystemController()
+        : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000), status_led_(led_config_) {}
 
     // The single entry point to kick off the application logic
     void start() {
         ESP_LOGI(TAG, "Booting Selective Pet Access System...");
 
         // Signal a successful boot sequence (e.g., Solid Blue)
-        status_led_.set_static(0, 0, 30);
+        status_led_.set_static(0, 30, 0);
     }
 
 private:
-    // --- Initialization Order ---
-    // Class members are initialized strictly in the order they are declared here!
-    // Therefore, configs MUST be declared before the objects that consume them.
+    // Core Hardware Buses
+    i2c::I2CMasterBus i2c_bus_;
 
-    // 1. Subsystem Configurations
+    // Subsystem Configurations
     ui::SmartLedConfig led_config_{
         .pin = board::PIN_LED_STRIP,
         .rmt_resolution_hz = board::LED_RMT_RES_HZ,
@@ -41,7 +44,7 @@ private:
         .task_stack_size = 3072
     };
 
-    // 2. Subsystem Objects
+    // Subsystem Objects
     ui::SmartLed status_led_;
 };
 

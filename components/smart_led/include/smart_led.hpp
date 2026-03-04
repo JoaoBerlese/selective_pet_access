@@ -6,12 +6,12 @@
 
 #pragma once
 
-#include <cstdint>
+#include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
-#include "driver/gpio.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
+#include <cstdint>
 // Remember to include the ESP-IDF component for LED strip control
 // idf.py add-dependency --component smart_led "espressif/led_strip"
 #include "led_strip.h"

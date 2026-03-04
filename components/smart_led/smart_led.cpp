@@ -1,7 +1,7 @@
 #include "smart_led.hpp"
 
-#include "esp_check.h"
-#include "esp_log.h"
+#include <esp_check.h>
+#include <esp_log.h>
 
 namespace pet_access::ui {
 
