@@ -5,6 +5,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 // Local Project Dependencies
+#include "AHT25.hpp"
 #include "I2CMasterBus.hpp"
 #include "board_mapping.hpp"
 #include "smart_led.hpp"
@@ -21,7 +22,9 @@ class SystemController {
 public:
     // The constructor initializes all subsystems via RAII
     SystemController()
-        : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000), status_led_(led_config_) {}
+        : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000)
+        , status_led_(led_config_)
+        , temp_humidity_sensor_(i2c_bus_) {}
 
     // The single entry point to kick off the application logic
     void start() {
@@ -29,9 +32,27 @@ public:
 
         // Signal a successful boot sequence (e.g., Solid Blue)
         status_led_.set_static(0, 30, 0);
+
+        // Perform boot-time hardware diagnostics
+        run_sensor_diagnostic();
     }
 
 private:
+    void run_sensor_diagnostic() {
+        sensors::AHT25::reading diag_reading;
+        esp_err_t ret = temp_humidity_sensor_.read(diag_reading);
+        if (ret == ESP_OK) {
+            ESP_LOGI(
+                TAG,
+                "Sensor Diagnostic - Temperature: %.2f °C, Humidity: %.2f %%",
+                diag_reading.temperature,
+                diag_reading.humidity
+            );
+        } else {
+            ESP_LOGW(TAG, "Sensor Diagnostic Failed: %s", esp_err_to_name(ret));
+        }
+    }
+
     // Core Hardware Buses
     i2c::I2CMasterBus i2c_bus_;
 
@@ -46,6 +67,7 @@ private:
 
     // Subsystem Objects
     ui::SmartLed status_led_;
+    sensors::AHT25 temp_humidity_sensor_;
 };
 
 }  // namespace pet_access::core
@@ -63,12 +85,10 @@ extern "C" void app_main(void) {
     // It is perfectly safe, permanently allocated, and doesn't pollute the global scope.
     static pet_access::core::SystemController system_app;
 
-    // 2. Start the logic
+    // Start the logic
     system_app.start();
 
-    // 3. Reclaim memory
-    // The app_main task has done its job. We delete it so the RTOS can
-    // reclaim its ~4KB of stack memory for other tasks (like Wi-Fi).
+    // Reclaim memory
     ESP_LOGI(TAG, "Boot complete. Terminating app_main task to save RAM.");
     vTaskDelete(nullptr);
 }
