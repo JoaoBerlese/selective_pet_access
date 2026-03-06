@@ -7,6 +7,7 @@
 // Local Project Dependencies
 #include "AHT25.hpp"
 #include "I2CMasterBus.hpp"
+#include "VL53L0X.hpp"
 #include "board_mapping.hpp"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
@@ -24,13 +25,14 @@ public:
     SystemController()
         : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000)
         , status_led_(led_config_)
-        , temp_humidity_sensor_(i2c_bus_) {}
+        , temp_humidity_sensor_(i2c_bus_)
+        , distance_sensor_(i2c_bus_) {}  // Inject the shared I2C bus
 
     // The single entry point to kick off the application logic
     void start() {
         ESP_LOGI(TAG, "Booting Selective Pet Access System...");
 
-        // Signal a successful boot sequence (e.g., Solid Blue)
+        // Signal a successful boot sequence (e.g., Solid green)
         status_led_.set_static(0, 30, 0);
 
         // Perform boot-time hardware diagnostics
@@ -39,17 +41,32 @@ public:
 
 private:
     void run_sensor_diagnostic() {
+        // --- 1. AHT25 Diagnostic ---
         sensors::AHT25::reading diag_reading;
         esp_err_t ret = temp_humidity_sensor_.read(diag_reading);
         if (ret == ESP_OK) {
             ESP_LOGI(
                 TAG,
-                "Sensor Diagnostic - Temperature: %.2f °C, Humidity: %.2f %%",
+                "AHT25 Diagnostic - Temperature: %.2f C, Humidity: %.2f %%",
                 diag_reading.temperature,
                 diag_reading.humidity
             );
         } else {
-            ESP_LOGW(TAG, "Sensor Diagnostic Failed: %s", esp_err_to_name(ret));
+            ESP_LOGW(TAG, "AHT25 Diagnostic Failed: %s", esp_err_to_name(ret));
+        }
+
+        // --- 2. VL53L0X Diagnostic ---
+        ret = distance_sensor_.initialize();
+        if (ret == ESP_OK) {
+            uint16_t distance_mm = 0;
+            ret = distance_sensor_.read_single_shot(distance_mm);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "VL53L0X Diagnostic - Distance: %u mm", distance_mm);
+            } else {
+                ESP_LOGW(TAG, "VL53L0X Read Failed: %s", esp_err_to_name(ret));
+            }
+        } else {
+            ESP_LOGW(TAG, "VL53L0X Initialization Failed: %s", esp_err_to_name(ret));
         }
     }
 
@@ -68,6 +85,7 @@ private:
     // Subsystem Objects
     ui::SmartLed status_led_;
     sensors::AHT25 temp_humidity_sensor_;
+    sensors::VL53L0X distance_sensor_;
 };
 
 }  // namespace pet_access::core
