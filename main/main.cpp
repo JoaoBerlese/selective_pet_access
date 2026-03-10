@@ -9,6 +9,7 @@
 #include "I2CMasterBus.hpp"
 #include "VL53L0X.hpp"
 #include "board_mapping.hpp"
+#include "ledc_servo.hpp"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
 
@@ -26,7 +27,8 @@ public:
         : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000)
         , status_led_(led_config_)
         , temp_humidity_sensor_(i2c_bus_)
-        , distance_sensor_(i2c_bus_) {}  // Inject the shared I2C bus
+        , distance_sensor_(i2c_bus_)  // Inject the shared I2C bus
+        , lid_servo_(servo_config) {}
 
     // The single entry point to kick off the application logic
     void start() {
@@ -37,6 +39,21 @@ public:
 
         // Perform boot-time hardware diagnostics
         run_sensor_diagnostic();
+
+        // Example action: Move the lid servo to 90 degrees on startup
+        if (lid_servo_.initialize() == ESP_OK) {
+            esp_err_t ret = lid_servo_.set_angle(0);  // Move to starting position
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to center servo on boot");
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(3000));  // Hold for 3 seconds
+
+            ret = lid_servo_.sleep();
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to put servo to sleep on boot");
+            }
+        }
     }
 
 private:
@@ -74,18 +91,27 @@ private:
     i2c::I2CMasterBus i2c_bus_;
 
     // Subsystem Configurations
-    ui::SmartLedConfig led_config_{
+    const ui::SmartLedConfig led_config_{
         .pin = board::PIN_LED_STRIP,
         .rmt_resolution_hz = board::LED_RMT_RES_HZ,
         .task_priority = sys::PRIORITY_UI_LED,
         .task_core = 1,
         .task_stack_size = 3072
     };
+    const actuators::LedcServo::Config servo_config = {
+        .pin = board::PIN_SERVO,
+        .timer = LEDC_TIMER_0,
+        .channel = LEDC_CHANNEL_0,
+        .min_pulse_us = 500,
+        .max_pulse_us = 2400,
+        .max_angle_deg = 180
+    };
 
     // Subsystem Objects
     ui::SmartLed status_led_;
     sensors::AHT25 temp_humidity_sensor_;
     sensors::VL53L0X distance_sensor_;
+    actuators::LedcServo lid_servo_;
 };
 
 }  // namespace pet_access::core

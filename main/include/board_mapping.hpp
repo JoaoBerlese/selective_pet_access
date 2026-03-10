@@ -24,10 +24,9 @@ constexpr gpio_num_t PIN_LED_STRIP = GPIO_NUM_48;
 constexpr uint32_t LED_RMT_RES_HZ = 10'000'000;
 
 // =============================================================================
-// Actuators (Motor / Door)
+// Actuators (Servo / lid mechanism)
 // =============================================================================
-// constexpr gpio_num_t PIN_MOTOR_PWM  = GPIO_NUM_10;
-// constexpr gpio_num_t PIN_RELAY_MAIN = GPIO_NUM_12;
+constexpr gpio_num_t PIN_SERVO = GPIO_NUM_14;
 
 // =============================================================================
 // Sensors (I2C)
