@@ -1,3 +1,8 @@
+/**
+ * @file ledc_servo.hpp
+ * @author João Berlese
+ * @brief Wrapper class for controlling a servo motor using the ESP-IDF LEDC PWM driver.
+ */
 
 #pragma once
 

@@ -1,5 +1,5 @@
 /**
- * VL53L0X.hpp
+ * @file VL53L0X.hpp
  * @author João Berlese
  * @brief C++20 RAII Minimal Wrapper for VL53L0X ToF Sensor using I2C Master Bus
  */

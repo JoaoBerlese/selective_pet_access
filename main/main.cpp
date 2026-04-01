@@ -1,8 +1,10 @@
 // C++ Standard Library
+#include <array>
 #include <cstdio>
 // ESP-IDF Framework & FreeRTOS
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/task.h>
 // Local Project Dependencies
 #include "AHT25.hpp"
@@ -12,6 +14,11 @@
 #include "ledc_servo.hpp"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
+// BLE Subsystem Dependencies
+#include "BeaconTypes.hpp"
+#include "NimbleScanner.hpp"
+#include "PetProximityTracker.hpp"
+#include "nvs_flash.h"
 
 static const char* TAG = "Main";
 
@@ -20,11 +27,19 @@ static const char* TAG = "Main";
 // =============================================================================
 namespace pet_access::core {
 
+// Predefined Instance ID for myCat's collar (Eddystone UID Frame)
+// This is the "serial number" part of the UID frame that uniquely identifies the pet's collar.
+constexpr std::array<uint8_t, 6> CAT_COLLAR_INSTANCE_ID = {0xFD, 0xA5, 0x06, 0x93, 0xA4, 0xE2};
+
 class SystemController {
 public:
     // The constructor initializes all subsystems via RAII
     SystemController()
-        : i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000)
+        : ble_queue_()                     // 1. Initialize the BLE event queue before the scanner and tracker
+        , ble_scanner_(ble_queue_.handle)  // 2. Inject the queue into the scanner
+        // 3. Inject both the scanner and the queue into the tracker
+        , pet_tracker_(ble_scanner_, ble_queue_.handle, CAT_COLLAR_INSTANCE_ID, sys::PRIORITY_PET_TRACKING)
+        , i2c_bus_(board::I2C_PORT, board::I2C_SDA_PIN, board::I2C_SCL_PIN, 100'000)
         , status_led_(led_config_)
         , temp_humidity_sensor_(i2c_bus_)
         , distance_sensor_(i2c_bus_)  // Inject the shared I2C bus
@@ -39,6 +54,23 @@ public:
 
         // Perform boot-time hardware diagnostics
         run_sensor_diagnostic();
+
+        // Initialize NVS (Required for the Bluetooth Controller baseband)
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err = nvs_flash_init();
+        }
+        ESP_ERROR_CHECK(err);
+
+        // Initialize NimBLE Stack (Blocks until synced with baseband)
+        ESP_LOGI(TAG, "Initializing BLE Subsystem...");
+        if (ble_scanner_.initialize() == ESP_OK) {
+            // Start the RTOS task for tracking. This will automatically start the scanner.
+            pet_tracker_.start();
+        } else {
+            ESP_LOGE(TAG, "CRITICAL: Failed to initialize BLE stack. Tracker offline.");
+        }
 
         // Example action: Move the lid servo to 90 degrees on startup
         if (lid_servo_.initialize() == ESP_OK) {
@@ -86,6 +118,25 @@ private:
             ESP_LOGW(TAG, "VL53L0X Initialization Failed: %s", esp_err_to_name(ret));
         }
     }
+
+    // --- BLE Infrastructure ---
+    // RAII Wrapper to guarantee the FreeRTOS Queue is created BEFORE
+    // the scanner and tracker are instantiated in the constructor init-list.
+    struct BleEventQueue {
+        QueueHandle_t handle;
+        BleEventQueue() : handle(xQueueCreate(16, sizeof(bluetooth::BeaconEvent))) {
+            if (handle == nullptr) {
+                ESP_LOGE(TAG, "FATAL: Failed to allocate BLE Event Queue");
+                abort();
+            }
+        }
+        ~BleEventQueue() {
+            if (handle)
+                vQueueDelete(handle);
+        }
+    } ble_queue_;
+    bluetooth::NimbleScanner ble_scanner_;
+    tracking::PetProximityTracker pet_tracker_;
 
     // Core Hardware Buses
     i2c::I2CMasterBus i2c_bus_;
