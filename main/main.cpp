@@ -12,6 +12,7 @@
 #include "VL53L0X.hpp"
 #include "board_mapping.hpp"
 #include "ledc_servo.hpp"
+#include "lid_controller.hpp"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
 // BLE Subsystem Dependencies
@@ -43,7 +44,8 @@ public:
         , status_led_(led_config_)
         , temp_humidity_sensor_(i2c_bus_)
         , distance_sensor_(i2c_bus_)  // Inject the shared I2C bus
-        , lid_servo_(servo_config) {}
+        , lid_servo_(servo_config)
+        , lid_controller_(lid_servo_, sys::PRIORITY_LID_CONTROLLER) {}
 
     // The single entry point to kick off the application logic
     void start() {
@@ -72,19 +74,25 @@ public:
             ESP_LOGE(TAG, "CRITICAL: Failed to initialize BLE stack. Tracker offline.");
         }
 
-        // Example action: Move the lid servo to 90 degrees on startup
-        if (lid_servo_.initialize() == ESP_OK) {
-            esp_err_t ret = lid_servo_.set_angle(0);  // Move to starting position
-            if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to center servo on boot");
-            }
-
-            vTaskDelay(pdMS_TO_TICKS(3000));  // Hold for 3 seconds
-
-            ret = lid_servo_.sleep();
-            if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to put servo to sleep on boot");
-            }
+        esp_err_t ret = lid_servo_.initialize();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize servo: %s", esp_err_to_name(ret));
+        }
+        // Init lid_controller Service (Spawns its own RTOS task)
+        ret = lid_controller_.initialize();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize LidController: %s", esp_err_to_name(ret));
+        }
+        // Example action:
+        ret = lid_controller_.open();  // Will move smoothly over 2 seconds in the background
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to send open command to lid controller: %s", esp_err_to_name(ret));
+        }
+        vTaskDelay(pdMS_TO_TICKS(10000));
+        // Example action:
+        ret = lid_controller_.close();  // Will move smoothly over 2 seconds in the background
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to send close command to lid controller: %s", esp_err_to_name(ret));
         }
     }
 
@@ -155,7 +163,7 @@ private:
         .channel = LEDC_CHANNEL_0,
         .min_pulse_us = 500,
         .max_pulse_us = 2400,
-        .max_angle_deg = 180
+        .max_angle_deg = 180.0f
     };
 
     // Subsystem Objects
@@ -163,6 +171,7 @@ private:
     sensors::AHT25 temp_humidity_sensor_;
     sensors::VL53L0X distance_sensor_;
     actuators::LedcServo lid_servo_;
+    services::LidController lid_controller_;
 };
 
 }  // namespace pet_access::core

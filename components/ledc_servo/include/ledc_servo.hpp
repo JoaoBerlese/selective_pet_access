@@ -24,7 +24,7 @@ public:
         // These are parameterizable so you can tune them per physical unit.
         uint32_t min_pulse_us = 1000;  // Minimum pulse width in microseconds
         uint32_t max_pulse_us = 2000;  // Maximum pulse width in microseconds
-        uint8_t max_angle_deg = 180;   // Maximum angle corresponding to max_pulse_us
+        float max_angle_deg = 180.0f;  // Maximum angle corresponding to max_pulse_us
     };
 
     /**
@@ -55,10 +55,10 @@ public:
 
     /**
      * @brief Sets the angle of the servo.
-     * @param angle_degrees Angle between 0 and config.max_angle_deg.
+     * @param angle_degrees Angle between 0.0f and config.max_angle_deg.
      * @return esp_err_t ESP_OK on success, ESP_ERR_INVALID_STATE if not init.
      */
-    [[nodiscard]] esp_err_t set_angle(uint8_t angle_deg);
+    [[nodiscard]] esp_err_t set_angle(float angle_deg);
 
     /**
      * @brief Stops the PWM signal, putting the servo into a low-power standby state.
@@ -78,7 +78,7 @@ private:
     static constexpr uint32_t MAX_DUTY_TICKS = (1 << PWM_RESOLUTION);
     static constexpr uint32_t PERIOD_US = 1000000 / PWM_FREQ_HZ;  // 20000 us
 
-    [[nodiscard]] uint32_t calculate_duty(uint8_t angle_deg) const;
+    [[nodiscard]] uint32_t calculate_duty(float angle_deg) const;
 };
 
 }  // Namespace pet_access::actuators

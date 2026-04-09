@@ -72,7 +72,7 @@ esp_err_t LedcServo::initialize() {
 // Public API
 // =============================================================================
 
-esp_err_t LedcServo::set_angle(uint8_t angle_deg) {
+esp_err_t LedcServo::set_angle(float angle_deg) {
     // Check if initialized before allowing angle setting
     if (!initialized_) {
         ESP_LOGE(TAG, "Set Angle Failed: Not initialized");
@@ -80,8 +80,8 @@ esp_err_t LedcServo::set_angle(uint8_t angle_deg) {
     }
 
     // Check for valid angle range
-    if (angle_deg > config_.max_angle_deg) {
-        ESP_LOGE(TAG, "Invalid Angle: %.d degrees (must be between 0 and %d)", angle_deg, config_.max_angle_deg);
+    if ((angle_deg < 0.0f) || (angle_deg > config_.max_angle_deg)) {
+        ESP_LOGE(TAG, "Invalid Angle: %.2f degrees (must be between 0.0 and %.2f)", angle_deg, config_.max_angle_deg);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -122,15 +122,19 @@ esp_err_t LedcServo::sleep() {
 // Private Helper Functions
 // =============================================================================
 
-uint32_t LedcServo::calculate_duty(uint8_t angle_deg) const {
-    // Linear mapping from angle (0 - max_angle) to pulse width (min_pulse - max_pulse)
-    uint32_t pulse_range_us = config_.max_pulse_us - config_.min_pulse_us;
-    uint32_t pulse_us = config_.min_pulse_us + ((pulse_range_us * angle_deg) / config_.max_angle_deg);
+uint32_t LedcServo::calculate_duty(float angle_deg) const {
+    // Hardware FPU single-precision math.
+    // Explicit casts prevent integer truncation and double-precision promotion.
+    float pulse_range_us = static_cast<float>(config_.max_pulse_us - config_.min_pulse_us);
+
+    // Continuous mapping from angle (0.0f - max_angle_deg) to pulse width
+    float pulse_us = static_cast<float>(config_.min_pulse_us) + ((pulse_range_us * angle_deg) / config_.max_angle_deg);
 
     // Map pulse width (us) to LEDC duty ticks
-    uint32_t duty_ticks = (pulse_us * MAX_DUTY_TICKS) / PERIOD_US;
+    float duty_ticks_f = (pulse_us * static_cast<float>(MAX_DUTY_TICKS)) / static_cast<float>(PERIOD_US);
 
-    return duty_ticks;
+    // Add 0.5f to round to the nearest integer tick before truncating to uint32_t
+    return static_cast<uint32_t>(duty_ticks_f + 0.5f);
 }
 
 }  // Namespace pet_access::actuators
