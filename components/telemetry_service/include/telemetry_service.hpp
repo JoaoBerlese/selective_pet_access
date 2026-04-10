@@ -49,7 +49,7 @@ public:
     TelemetryService& operator=(TelemetryService&&) = delete;
 
     // Spawns the background FreeRTOS task
-    void start(uint32_t sample_interval_ms = 5000);
+    void start(uint32_t sample_interval_ms = 60000);
 
     // Thread-safe getter. std::optional eliminates C-style pointer out-parameters.
     std::optional<TelemetryData> get_latest_data();
@@ -62,7 +62,7 @@ private:
     TelemetryData current_data_{0.0f, 0.0f, 0, false};
 
     TaskHandle_t task_handle_ = nullptr;
-    uint32_t sample_interval_ms_ = 5000;
+    uint32_t sample_interval_ms_ = 60000;
 
     // Median filter size - compile-time constant
     static constexpr size_t kSampleSize = 5;
