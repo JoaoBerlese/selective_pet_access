@@ -15,6 +15,7 @@
 #include "lid_controller.hpp"
 #include "smart_led.hpp"
 #include "sys_config.hpp"
+#include "telemetry_service.hpp"
 // BLE Subsystem Dependencies
 #include "BeaconTypes.hpp"
 #include "NimbleScanner.hpp"
@@ -44,6 +45,8 @@ public:
         , status_led_(led_config_)
         , temp_humidity_sensor_(i2c_bus_)
         , distance_sensor_(i2c_bus_)  // Inject the shared I2C bus
+        // Inject sensors and priority into TelemetryService
+        , telemetry_service_(temp_humidity_sensor_, distance_sensor_, sys::PRIORITY_TELEMETRY)
         , lid_servo_(servo_config)
         , lid_controller_(lid_servo_, sys::PRIORITY_LID_CONTROLLER) {}
 
@@ -53,9 +56,6 @@ public:
 
         // Signal a successful boot sequence (e.g., Solid green)
         status_led_.set_static(0, 30, 0);
-
-        // Perform boot-time hardware diagnostics
-        run_sensor_diagnostic();
 
         // Initialize NVS (Required for the Bluetooth Controller baseband)
         esp_err_t err = nvs_flash_init();
@@ -74,6 +74,13 @@ public:
             ESP_LOGE(TAG, "CRITICAL: Failed to initialize BLE stack. Tracker offline.");
         }
 
+        // Hardware Initialization for Sensors
+        if (distance_sensor_.initialize() != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize VL53L0X distance sensor.");
+        }
+        // Start Telemetry Service (Polls every 2 seconds for testing, adjust as needed)
+        telemetry_service_.start();
+
         esp_err_t ret = lid_servo_.initialize();
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize servo: %s", esp_err_to_name(ret));
@@ -83,6 +90,7 @@ public:
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize LidController: %s", esp_err_to_name(ret));
         }
+        /*
         // Example action:
         ret = lid_controller_.open();  // Will move smoothly over 2 seconds in the background
         if (ret != ESP_OK) {
@@ -94,39 +102,10 @@ public:
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to send close command to lid controller: %s", esp_err_to_name(ret));
         }
+        */
     }
 
 private:
-    void run_sensor_diagnostic() {
-        // --- 1. AHT25 Diagnostic ---
-        sensors::AHT25::reading diag_reading;
-        esp_err_t ret = temp_humidity_sensor_.read(diag_reading);
-        if (ret == ESP_OK) {
-            ESP_LOGI(
-                TAG,
-                "AHT25 Diagnostic - Temperature: %.2f C, Humidity: %.2f %%",
-                diag_reading.temperature,
-                diag_reading.humidity
-            );
-        } else {
-            ESP_LOGW(TAG, "AHT25 Diagnostic Failed: %s", esp_err_to_name(ret));
-        }
-
-        // --- 2. VL53L0X Diagnostic ---
-        ret = distance_sensor_.initialize();
-        if (ret == ESP_OK) {
-            uint16_t distance_mm = 0;
-            ret = distance_sensor_.read_single_shot(distance_mm);
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "VL53L0X Diagnostic - Distance: %u mm", distance_mm);
-            } else {
-                ESP_LOGW(TAG, "VL53L0X Read Failed: %s", esp_err_to_name(ret));
-            }
-        } else {
-            ESP_LOGW(TAG, "VL53L0X Initialization Failed: %s", esp_err_to_name(ret));
-        }
-    }
-
     // --- BLE Infrastructure ---
     // RAII Wrapper to guarantee the FreeRTOS Queue is created BEFORE
     // the scanner and tracker are instantiated in the constructor init-list.
@@ -170,6 +149,7 @@ private:
     ui::SmartLed status_led_;
     sensors::AHT25 temp_humidity_sensor_;
     sensors::VL53L0X distance_sensor_;
+    services::TelemetryService telemetry_service_;
     actuators::LedcServo lid_servo_;
     services::LidController lid_controller_;
 };

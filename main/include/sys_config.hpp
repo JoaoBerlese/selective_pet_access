@@ -18,5 +18,6 @@ namespace pet_access::sys {
 constexpr UBaseType_t PRIORITY_PET_TRACKING = 7;    // Core business logic (high priority)
 constexpr UBaseType_t PRIORITY_LID_CONTROLLER = 6;  // Actuation (must be higher than UI for responsiveness)
 constexpr UBaseType_t PRIORITY_UI_LED = 5;          // Visual feedback (mid priority)
+constexpr UBaseType_t PRIORITY_TELEMETRY = 3;       // Background sensor polling (low priority)
 
 }  // namespace pet_access::sys
