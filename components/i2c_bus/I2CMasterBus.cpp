@@ -28,6 +28,24 @@ I2CMasterBus::I2CMasterBus(i2c_port_t port, gpio_num_t sda_pin, gpio_num_t scl_p
         abort();
     }
 
+    // =========================================================================
+    // HARDWARE TIMEOUT FIX (ESP32-S3 SPECIFIC ARCHITECTURE)
+    // =========================================================================
+    // Configures the hardware peripheral timeout to prevent ISR lockups and
+    // subsequent Watchdog panics if the I2C bus floats or gets stuck low.
+    // This guarantees the ISR aborts gracefully returning ESP_ERR_TIMEOUT.
+    //
+    // WARNING: Unlike the legacy ESP32 which accepts absolute APB clock cycles,
+    // the ESP32-S3 timeout register uses a logarithmic scale: 2^X APB cycles.
+    // At an 80MHz APB clock: 19 = 2^19 = 524,288 cycles (~6.5ms).
+    // This allows the slow AHT25 to stretch the clock safely while maintaining
+    // a strict hardware safety net.
+    err = i2c_set_timeout(port_, 19);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Could not set I2C hardware timeout: %s", esp_err_to_name(err));
+    }
+    // =========================================================================
+
     err = i2c_driver_install(port_, conf.mode, 0, 0, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to install I2C driver: %s", esp_err_to_name(err));
