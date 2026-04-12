@@ -22,6 +22,28 @@ enum class ProximityState {
     AtFeeder      // Pet is at the bowl (Trigger door open)
 };
 
+// Unified telemetry payload. Returned by value for lock-free thread safety.
+struct PetTelemetry {
+    ProximityState state;
+    float rssi_ema;
+    uint16_t battery_mv;
+    TickType_t state_changed_at_ticks;
+    TickType_t rssi_updated_at_ticks;
+    TickType_t battery_updated_at_ticks;
+};
+
+// Observer interface for applications that want to react to proximity changes.
+class IProximityObserver {
+public:
+    virtual ~IProximityObserver() = default;
+
+    // CRITICAL RTOS WARNING:
+    // This method executes in the PetProximityTracker task context.
+    // Implementations MUST NOT block. Use xTaskNotify or FreeRTOS queues
+    // to wake up your application task and return immediately.
+    virtual void on_proximity_changed(ProximityState new_state) = 0;
+};
+
 class PetProximityTracker {
 public:
     // Dependency Injection: Takes the scanner interface and the shared FreeRTOS queue.
@@ -31,6 +53,7 @@ public:
         QueueHandle_t beacon_queue,
         const std::array<uint8_t, 6> target_instance_id,
         UBaseType_t task_priority,
+        IProximityObserver* observer = nullptr,
         BaseType_t task_core = 1  // Default to App Core (Core 1)
     );
 
@@ -46,27 +69,27 @@ public:
     void start();
     void stop();
 
-    // Thread-safe accessors for other parts of the system (like the door motor controller)
-    ProximityState getProximityState() const;
-    float get_current_rssi() const;
-    uint16_t get_battery_mv() const;
+    // Thread-safe accessors for the current proximity state and telemetry data
+    [[nodiscard]] PetTelemetry get_telemetry() const;
 
 private:
     bluetooth::IBeaconScanner& scanner_;
     QueueHandle_t beacon_queue_;
     TaskHandle_t task_handle_{nullptr};
 
+    IProximityObserver* observer_{nullptr};
+
     std::array<uint8_t, 6> target_instance_id_;
     std::optional<bluetooth::MacAddress> known_mac_{std::nullopt};  // Mapped dynamically
 
     // Thread-safe state variables
-    static constexpr float RSSI_WEAK_SIGNAL = -100.0f;  // Default RSSI value when no signal is detected
     std::atomic<ProximityState> proximity_state_{ProximityState::Unknown};
     std::atomic<float> current_rssi_{RSSI_WEAK_SIGNAL};  // Initialize to very weak signal
     std::atomic<uint16_t> battery_mv_{0};
-
-    // FreeRTOS tick tracking to handle the pet walking out of range completely
-    TickType_t last_seen_ticks_{0};
+    // Timestamps for telemetry freshness (in FreeRTOS ticks)
+    std::atomic<TickType_t> rssi_updated_ticks_{0};  // Used also for last seen time to detect "Away" status
+    std::atomic<TickType_t> battery_updated_ticks_{0};
+    std::atomic<TickType_t> state_changed_ticks_{0};
 
     // Injected RTOS parameters
     UBaseType_t task_priority_;
@@ -80,14 +103,18 @@ private:
     void update_ema_and_state(int8_t raw_rssi);
     void check_for_timeout();
 
+    void set_proximity_state(ProximityState new_state);
+    static constexpr const char* state_to_string(ProximityState state);
+
     [[nodiscard]] bool is_target_device(const bluetooth::MacAddress& incoming_mac) const;
 
     // Tuning parameters for the proximity thresholds and EMA smoothing factor
     // Exponential Moving Average (EMA): new_ema = (alpha * new_value) + ((1 - alpha) * current_ema)
     static constexpr float EMA_ALPHA = 0.2f;              // Smoothing factor for RSSI (20% new, 80% history)
-    static constexpr float THRESHOLD_AT_FEEDER = -60.0f;  // RSSI above this means the pet is at the bowl
-    static constexpr float THRESHOLD_AWAY = -72.0f;       // RSSI below this means the pet is away
-    static constexpr float HYSTERESIS_MARGIN = 3.0f;      // Hysteresis margin to prevent rapid toggling
+    static constexpr float THRESHOLD_AT_FEEDER = -62.0f;  // RSSI above this means the pet is at the bowl
+    static constexpr float THRESHOLD_AWAY = -75.0f;       // RSSI below this means the pet is away
+    static constexpr float RSSI_WEAK_SIGNAL = -100.0f;    // Default RSSI value when no signal is detected
+    static constexpr float HYSTERESIS_MARGIN = 0.75f;     // Hysteresis margin to prevent rapid toggling
     static constexpr uint32_t TIMEOUT_MS = 5000;          // If no beacon seen for this long, consider the pet away
 };
 

@@ -17,10 +17,12 @@ PetProximityTracker::PetProximityTracker(
     QueueHandle_t beacon_queue,
     const std::array<uint8_t, 6> target_instance_id,
     UBaseType_t task_priority,
+    IProximityObserver* observer,
     BaseType_t task_core
 )
     : scanner_(scanner)
     , beacon_queue_(beacon_queue)
+    , observer_(observer)
     , target_instance_id_(target_instance_id)
     , task_priority_(task_priority)
     , task_core_(task_core) {}
@@ -73,16 +75,17 @@ void PetProximityTracker::stop() {
 // State Accessors
 // =============================================================================
 
-ProximityState PetProximityTracker::getProximityState() const {
-    return proximity_state_.load();
-}
-
-float PetProximityTracker::get_current_rssi() const {
-    return current_rssi_.load();
-}
-
-uint16_t PetProximityTracker::get_battery_mv() const {
-    return battery_mv_.load();
+PetTelemetry PetProximityTracker::get_telemetry() const {
+    // Memory Order Acquire ensures we get the most up-to-date values flushed
+    // from Core 1's cache to Core 0 (if the motor controller runs there).
+    return {
+        proximity_state_.load(std::memory_order_acquire),
+        current_rssi_.load(std::memory_order_acquire),
+        battery_mv_.load(std::memory_order_acquire),
+        state_changed_ticks_.load(std::memory_order_acquire),
+        rssi_updated_ticks_.load(std::memory_order_acquire),
+        battery_updated_ticks_.load(std::memory_order_acquire)
+    };
 }
 
 // =============================================================================
@@ -179,6 +182,7 @@ void PetProximityTracker::process_beacon_event(const bluetooth::BeaconEvent& eve
         // Use the Pragmatic Mask to associate TLM frames with the known MAC address from the UID frame
         if (is_target_device(event.mac)) {
             battery_mv_.store(parsed.battery_mv, std::memory_order_relaxed);
+            battery_updated_ticks_.store(xTaskGetTickCount(), std::memory_order_release);
             // We could also log or use the temperature data if needed: parsed.temperature_c
         }
     }
@@ -190,7 +194,8 @@ void PetProximityTracker::process_beacon_event(const bluetooth::BeaconEvent& eve
 }
 
 void PetProximityTracker::update_ema_and_state(int8_t raw_rssi) {
-    last_seen_ticks_ = xTaskGetTickCount();  // Update last seen time on every valid RSSI update
+    // Update last seen time on every valid RSSI update
+    rssi_updated_ticks_.store(xTaskGetTickCount(), std::memory_order_release);
 
     // Calculate the Exponential Moving Average (EMA) of RSSI for smoother proximity estimation
     float current_ema = current_rssi_.load(std::memory_order_relaxed);
@@ -231,16 +236,14 @@ void PetProximityTracker::update_ema_and_state(int8_t raw_rssi) {
             break;
     }
 
-    if (next != current_state) {
-        proximity_state_.store(next, std::memory_order_release);
-        ESP_LOGI(
-            TAG,
-            "Proximity state changed: %d -> %d (RSSI EMA: %.2f dBm)",
-            static_cast<int>(current_state),
-            static_cast<int>(next),
-            current_ema
-        );
-    }
+    // ==========================================
+    // DEEP DEBUG TRACE (Temporary)
+    // ==========================================
+    // ESP_LOGI(TAG, "RSSI EMA: %.2f dBm", current_ema);
+    // ==========================================
+
+    // If the state has changed, update it and log the transition
+    set_proximity_state(next);
 }
 
 void PetProximityTracker::check_for_timeout() {
@@ -250,10 +253,11 @@ void PetProximityTracker::check_for_timeout() {
     }
 
     TickType_t now = xTaskGetTickCount();
-    TickType_t elapsed = now - last_seen_ticks_;
+    TickType_t elapsed = now - rssi_updated_ticks_.load(std::memory_order_acquire);
 
     if (elapsed > pdMS_TO_TICKS(TIMEOUT_MS)) {
-        proximity_state_.store(ProximityState::Away, std::memory_order_release);
+        // Consider the pet "Away" if we haven't seen any beacon for a certain timeout period
+        set_proximity_state(ProximityState::Away);
         current_rssi_.store(RSSI_WEAK_SIGNAL, std::memory_order_relaxed);  // Reset RSSI to weak signal
     }
 }
@@ -272,6 +276,47 @@ bool PetProximityTracker::is_target_device(const bluetooth::MacAddress& incoming
     bool suffix_match = ((base_mac[5] & 0xF0) == (incoming_mac[5] & 0xF0));  // Match upper 4 bits of the last byte
 
     return prefix_match && suffix_match;
+}
+
+// =============================================================================
+// State Management Helpers
+// =============================================================================
+
+void PetProximityTracker::set_proximity_state(ProximityState new_state) {
+    ProximityState current_state = proximity_state_.load(std::memory_order_acquire);
+
+    if (current_state != new_state) {
+        proximity_state_.store(new_state, std::memory_order_release);
+        state_changed_ticks_.store(xTaskGetTickCount(), std::memory_order_release);
+
+        ESP_LOGI(
+            TAG,
+            "Proximity state changed: %s -> %s (RSSI EMA: %.2f dBm)",
+            state_to_string(current_state),
+            state_to_string(new_state),
+            current_rssi_.load(std::memory_order_relaxed)
+        );
+
+        // Fire the callback to notify the Orchestrator
+        if (observer_ != nullptr) {
+            observer_->on_proximity_changed(new_state);
+        }
+    }
+}
+
+constexpr const char* PetProximityTracker::state_to_string(ProximityState state) {
+    switch (state) {
+        case ProximityState::Unknown:
+            return "Unknown";
+        case ProximityState::Away:
+            return "Away";
+        case ProximityState::Approaching:
+            return "Approaching";
+        case ProximityState::AtFeeder:
+            return "AtFeeder";
+        default:
+            return "Invalid";
+    }
 }
 
 }  // namespace pet_access::tracking
