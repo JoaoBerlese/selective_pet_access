@@ -4,14 +4,14 @@
 
 namespace pet_access::sensors {
 
-static const char* VL53L0X_TAG = "VL53L0X";
+static const char* TAG = "VL53L0X";
 
 // =============================================================================
 // Lifecycle & Hardware Initialization
 // =============================================================================
 
 VL53L0X::VL53L0X(i2c::I2CMasterBus& i2c_bus, uint8_t i2c_address) : i2c_bus_(i2c_bus), i2c_address_(i2c_address) {
-    ESP_LOGI(VL53L0X_TAG, "VL53L0X constructed at I2C address 0x%02X", i2c_address_);
+    ESP_LOGI(TAG, "VL53L0X constructed at I2C address 0x%02X", i2c_address_);
 }
 
 esp_err_t VL53L0X::initialize() {
@@ -48,7 +48,7 @@ esp_err_t VL53L0X::initialize() {
         esp_err_t ret = write_reg(cmd.reg, cmd.val);
         if (ret != ESP_OK) {
             // Dynamic logging pinpointing exactly where the failure occurred
-            ESP_LOGW(VL53L0X_TAG, "Init Failed at REG 0x%02X: %s", cmd.reg, esp_err_to_name(ret));
+            ESP_LOGW(TAG, "Init Failed at REG 0x%02X: %s", cmd.reg, esp_err_to_name(ret));
             return ret;
         }
     }
@@ -66,7 +66,7 @@ esp_err_t VL53L0X::read_single_shot(uint16_t& out_distance_mm) {
     // 1. Trigger Single Shot Measurement (write 0x01 to SYSRANGE_START)
     ret = write_reg(0x00, 0x01);
     if (ret != ESP_OK) {
-        ESP_LOGW(VL53L0X_TAG, "Failed to trigger single shot measurement: %s", esp_err_to_name(ret));
+        ESP_LOGW(TAG, "Failed to trigger single shot measurement: %s", esp_err_to_name(ret));
         return ret;
     }
 
@@ -78,7 +78,7 @@ esp_err_t VL53L0X::read_single_shot(uint16_t& out_distance_mm) {
     // Note: ST stores the distance 10 bytes deep into the RESULT_RANGE_STATUS block.
     ret = read_reg16(REG_RESULT_RANGE_STATUS + 10, out_distance_mm);
     if (ret != ESP_OK) {
-        ESP_LOGW(VL53L0X_TAG, "Failed to read distance result: %s", esp_err_to_name(ret));
+        ESP_LOGW(TAG, "Failed to read distance result: %s", esp_err_to_name(ret));
         return ret;
     }
 

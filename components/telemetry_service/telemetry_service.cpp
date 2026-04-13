@@ -6,7 +6,7 @@
 
 namespace pet_access::services {
 
-static constexpr const char* TAG = "TelemetryService";
+static const char* TAG = "TelemetryService";
 
 // =============================================================================
 // Lifecycle
@@ -59,6 +59,21 @@ std::optional<TelemetryData> TelemetryService::get_latest_data() {
 }
 
 // =============================================================================
+// Private Helpers
+// =============================================================================
+
+constexpr uint8_t TelemetryService::distance_to_percentage(uint16_t distance_mm) {
+    // Clamp limits to prevent overflow/underflow
+    if (distance_mm >= kDistEmptyMm)
+        return 0;
+    if (distance_mm <= kDistFullMm)
+        return 100;
+
+    // Integer linear interpolation
+    return static_cast<uint8_t>(((kDistEmptyMm - distance_mm) * 100) / (kDistEmptyMm - kDistFullMm));
+}
+
+// =============================================================================
 // Background RTOS Task
 // =============================================================================
 
@@ -108,15 +123,18 @@ void TelemetryService::task_loop() {
             float median_hum = compute_median(hum_buffer);
             uint16_t median_dist = compute_median(dist_buffer);
 
+            // Convert raw distance to business-logic percentage
+            uint8_t feed_percent = distance_to_percentage(median_dist);
+
             {
                 // Scoped lock just for the assignment to minimize blocking time
                 rtos::LockGuard lock(data_mutex_);
                 current_data_.temperature_c = median_temp;
                 current_data_.humidity_percent = median_hum;
-                current_data_.feed_level_mm = median_dist;
+                current_data_.feed_level_percent = feed_percent;
                 current_data_.is_valid = true;
             }
-            ESP_LOGD(TAG, "State Updated | T:%.1f H:%.1f D:%d", median_temp, median_hum, median_dist);
+            ESP_LOGD(TAG, "State Updated | T:%.1f H:%.1f F:%u%%", median_temp, median_hum, feed_percent);
         } else {
             // If the burst fails, we maintain the 'Last Valid State' but log the degradation.
             // The orchestrator will still receive the last known good value.

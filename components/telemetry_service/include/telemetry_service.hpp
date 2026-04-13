@@ -20,7 +20,7 @@ namespace pet_access::services {
 struct TelemetryData {
     float temperature_c;
     float humidity_percent;
-    uint16_t feed_level_mm;
+    uint8_t feed_level_percent;
     bool is_valid;
 };
 
@@ -66,6 +66,13 @@ private:
 
     // Median filter size - compile-time constant
     static constexpr size_t kSampleSize = 5;
+
+    // Calibration Constants for Feed Level
+    static constexpr uint16_t kDistEmptyMm = 220;
+    static constexpr uint16_t kDistFullMm = 95;
+
+    // Helper function
+    static constexpr uint8_t distance_to_percentage(uint16_t distance_mm);
 
     // Injected RTOS parameters
     UBaseType_t task_priority_;

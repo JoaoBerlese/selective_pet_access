@@ -4,14 +4,14 @@
 
 namespace pet_access::sensors {
 
-static const char* AHT25_TAG = "AHT25";
+static const char* TAG = "AHT25";
 
 // =============================================================================
 // Lifecycle & Hardware Initialization
 // =============================================================================
 
 AHT25::AHT25(i2c::I2CMasterBus& i2c_bus, uint8_t i2c_address) : i2c_bus_(i2c_bus), i2c_address_(i2c_address) {
-    ESP_LOGI(AHT25_TAG, "sensor initialized at I2C address 0x%02X", i2c_address_);
+    ESP_LOGI(TAG, "sensor initialized at I2C address 0x%02X", i2c_address_);
 }
 
 // =============================================================================
@@ -25,7 +25,7 @@ esp_err_t AHT25::read(reading& out_reading) {
     // 1. Send Trigger (Protected by I2CMasterBus internal mutex)
     esp_err_t ret = i2c_bus_.write(i2c_address_, cmd, sizeof(cmd), pdMS_TO_TICKS(100));
     if (ret != ESP_OK) {
-        ESP_LOGW(AHT25_TAG, "Trigger Failed: %s", esp_err_to_name(ret));
+        ESP_LOGW(TAG, "Trigger Failed: %s", esp_err_to_name(ret));
         return ret;
     }
 
@@ -38,7 +38,7 @@ esp_err_t AHT25::read(reading& out_reading) {
     uint8_t data[6];
     ret = i2c_bus_.read(i2c_address_, data, sizeof(data), pdMS_TO_TICKS(100));
     if (ret != ESP_OK) {
-        ESP_LOGW(AHT25_TAG, "Read Failed: %s", esp_err_to_name(ret));
+        ESP_LOGW(TAG, "Read Failed: %s", esp_err_to_name(ret));
         return ret;
     }
 
