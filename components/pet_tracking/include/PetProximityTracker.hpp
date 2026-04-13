@@ -110,8 +110,8 @@ private:
 
     // Tuning parameters for the proximity thresholds and EMA smoothing factor
     // Exponential Moving Average (EMA): new_ema = (alpha * new_value) + ((1 - alpha) * current_ema)
-    static constexpr float EMA_ALPHA = 0.2f;              // Smoothing factor for RSSI (20% new, 80% history)
-    static constexpr float THRESHOLD_AT_FEEDER = -62.0f;  // RSSI above this means the pet is at the bowl
+    static constexpr float EMA_ALPHA = 0.3f;              // Smoothing factor for RSSI (30% new, 70% history)
+    static constexpr float THRESHOLD_AT_FEEDER = -64.0f;  // RSSI above this means the pet is at the bowl
     static constexpr float THRESHOLD_AWAY = -75.0f;       // RSSI below this means the pet is away
     static constexpr float RSSI_WEAK_SIGNAL = -100.0f;    // Default RSSI value when no signal is detected
     static constexpr float HYSTERESIS_MARGIN = 0.75f;     // Hysteresis margin to prevent rapid toggling
