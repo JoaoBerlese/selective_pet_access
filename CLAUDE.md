@@ -78,7 +78,7 @@ Task priorities are defined in `main/include/sys_config.hpp`. GPIO pin assignmen
 
 ## Adding New Components
 
-Follow the pattern described in `docs/New_component.md`. New hardware drivers belong in `components/`, must expose an abstract interface, and are wired up in `main/main.cpp`. Register the new component's directory in the root `CMakeLists.txt`.
+Follow the pattern described in `docs/05_Contributing.md` §4. New hardware drivers belong in `components/`, must expose an abstract interface, and are wired up in `main/main.cpp`. Register the new component's directory in the root `CMakeLists.txt`.
 
 ## Key Files
 
