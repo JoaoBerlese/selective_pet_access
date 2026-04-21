@@ -1,6 +1,11 @@
 {
     "name": "ESP-IDF v5.3 Dev Env",
     "image": "espressif/idf:release-v5.3",
+    "features": {
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "lts"
+        }
+    },
     "containerEnv": {
         "LC_ALL": "C.UTF-8",
         "LANG": "C.UTF-8"
