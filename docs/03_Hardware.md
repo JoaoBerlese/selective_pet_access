@@ -16,12 +16,13 @@ The ESP32-S3-N16R8 sits on the top deck. All wiring is routed through a single h
 
 | Role | Part | Notes |
 |---|---|---|
+| Mechanical base | Gravity pet feeder (comedouro/bebedouro) | [Buy on Mercado Livre](https://www.mercadolivre.com.br/bebedouro-e-comedouro-alimentador-gravidade-pet-ces-gatos-cor-cinza/p/MLB45745962?pdp_filters=item_id%3AMLB5271769154&matt_tool=38524122#origin=share&sid=share&wid=MLB5271769154&action=copy) — structural chassis for all modifications |
 | MCU | ESP32-S3-N16R8 | 16 MB QIO flash, 8 MB Octal PSRAM, built-in USB-JTAG |
 | Actuator | SG90 9 g micro servo | PWM @ 50 Hz, 500–2400 µs pulse, 0–180° sweep |
 | Temp / humidity | AHT25 (I²C) | Inside the food chamber |
 | Distance / feed level | VL53L0X ToF (I²C) | Pointed down into the bowl |
 | Status indicator | WS2812B single pixel | RMT-driven addressable LED |
-| Pet beacon | Eddystone-UID BLE beacon on Frodo's collar | Instance ID `FD A5 06 93 A4 E2` (see `main/main.cpp:40`) |
+| Pet beacon | Eddystone-UID BLE beacon · **Bundle B** | [Buy on AliExpress](https://pt.aliexpress.com/item/1005007270576203.html?spm=a2g0o.order_list.order_list_main.5.23bc1802GbV6kn&gatewayAdapt=glo2bra) — Instance ID `FD A5 06 93 A4 E2` (see `main/main.cpp:40`) |
 
 ---
 
@@ -109,3 +110,13 @@ The board has 8 MB of Octal PSRAM configured in `sdkconfig.defaults` (`CONFIG_SP
 - Inside the Dev Container the device always appears as `/dev/ttyACM0`.
 - OpenOCD uses `board/esp32s3-builtin.cfg`; F5 in VS Code halts the chip.
 - If flash fails with a timeout, put the chip in bootloader mode: hold `BOOT`, press `RST`, release `BOOT`, retry.
+
+---
+
+## 9. 3D Mechanical design
+
+The custom lid mount, servo bracket, and sensor housing were designed in Onshape and are publicly accessible:
+
+**[Open CAD project on Onshape](https://cad.onshape.com/documents/6f40efa1f36a90fcf6397240/w/0a5a0feb560c707967c8b055/e/a400aabde5c6b8c67bfb5760)**
+
+All parts have been successfully 3D-printed and the full mechanical assembly is currently functional.

@@ -18,7 +18,7 @@
 
 A real-world embedded system that solves a real problem: two cats, one feeder, and only **Frodo** is supposed to eat from it.
 
-The feeder continuously scans for BLE beacons. Frodo wears a beacon on his collar; when he approaches, the lid opens. Cinnamon, without a collar, is politely denied. The whole thing runs on an **ESP32-S3** with a strictly prioritized **FreeRTOS SMP** task model, ensuring the system responds within hard real-time deadlines — lid opens in the right moment, never stalls, never deadlocks.
+The feeder continuously scans for BLE beacons. Frodo wears a beacon on his collar; when he approaches, the lid opens. Cinnamon, without a collar, is politely denied. The whole thing runs on an **ESP32-S3** with a strictly prioritized **FreeRTOS SMP** task model, ensuring the system responds within hard real-time deadlines: lid opens in the right moment, never stalls, never deadlocks.
 
 The codebase is designed as a reference for **safety-critical firmware quality**: layered architecture, dependency injection, zero heap fragmentation, and a hermetic Docker build environment so any machine produces an identical binary.
 
@@ -30,17 +30,17 @@ The codebase is designed as a reference for **safety-critical firmware quality**
   <tr>
     <td align="center" width="33%">
       <b>✅ Frodo approaching</b><br>
-      <sub>Registered BLE beacon detected — lid opens.</sub><br><br>
+      <sub>Registered BLE beacon detected, lid opens.</sub><br><br>
       <a href="https://youtu.be/cU2Rki4ZUi0"><img src="https://img.youtube.com/vi/cU2Rki4ZUi0/hqdefault.jpg" width="100%"></a>
     </td>
     <td align="center" width="33%">
       <b>🚫 Cinnamon approaching</b><br>
-      <sub>No beacon — lid stays closed.</sub><br><br>
+      <sub>No beacon, lid stays closed.</sub><br><br>
       <a href="https://youtu.be/vrwV5VoLu70"><img src="https://img.youtube.com/vi/vrwV5VoLu70/hqdefault.jpg" width="100%"></a>
     </td>
     <td align="center" width="33%">
       <b>🐱🐱 Both cats, one access</b><br>
-      <sub>Cinnamon sneaks up while Frodo eats — Frodo leaves, lid closes, Cinnamon gets nothing.</sub><br><br>
+      <sub>Cinnamon sneaks up while Frodo eats: Frodo leaves, lid closes, Cinnamon gets nothing.</sub><br><br>
       <a href="https://youtu.be/7AZfh4SvZfM"><img src="https://img.youtube.com/vi/7AZfh4SvZfM/hqdefault.jpg" width="100%"></a>
     </td>
   </tr>
@@ -84,6 +84,7 @@ For a full technical breakdown — FSM, task priorities, memory model, and compo
 </table>
 
 Full BOM, pin map, and partition layout: **[docs/03_Hardware.md](docs/03_Hardware.md)**.
+3D mechanical design (fully printed & assembled): **[Onshape CAD project](https://cad.onshape.com/documents/6f40efa1f36a90fcf6397240/w/0a5a0feb560c707967c8b055/e/a400aabde5c6b8c67bfb5760)**.
 
 ---
 
@@ -101,7 +102,7 @@ Full BOM, pin map, and partition layout: **[docs/03_Hardware.md](docs/03_Hardwar
     </td>
     <td width="25%" align="center">
       <img src="docs/assets/pets/cinnamon_01.jpg" alt="Cinnamon" width="100%"><br>
-      <sub><b>Cinnamon</b> — no collar. 🚫 Access denied.</sub>
+      <sub><b>Cinnamon</b> — no collar. 🚫 No access.</sub>
     </td>
     <td width="25%" align="center">
       <img src="docs/assets/pets/cinnamon_02.jpg" alt="Cinnamon" width="100%"><br>
