@@ -31,22 +31,20 @@ The codebase is designed as a reference for **safety-critical firmware quality**
     <td align="center" width="33%">
       <b>✅ Frodo approaching</b><br>
       <sub>Registered BLE beacon detected — lid opens.</sub><br><br>
-      <video src="docs/assets/demos/Frodo_eating.mp4" controls width="100%"></video>
+      <a href="https://youtu.be/cU2Rki4ZUi0"><img src="https://img.youtube.com/vi/cU2Rki4ZUi0/hqdefault.jpg" width="100%"></a>
     </td>
     <td align="center" width="33%">
       <b>🚫 Cinnamon approaching</b><br>
       <sub>No beacon — lid stays closed.</sub><br><br>
-      <video src="docs/assets/demos/Cinnamon_ sniffing_around.mp4" controls width="100%"></video>
+      <a href="https://youtu.be/vrwV5VoLu70"><img src="https://img.youtube.com/vi/vrwV5VoLu70/hqdefault.jpg" width="100%"></a>
     </td>
     <td align="center" width="33%">
       <b>🐱🐱 Both cats, one access</b><br>
       <sub>Cinnamon sneaks up while Frodo eats — Frodo leaves, lid closes, Cinnamon gets nothing.</sub><br><br>
-      <video src="docs/assets/demos/Selective_access_when_both.mp4" controls width="100%"></video>
+      <a href="https://youtu.be/7AZfh4SvZfM"><img src="https://img.youtube.com/vi/7AZfh4SvZfM/hqdefault.jpg" width="100%"></a>
     </td>
   </tr>
 </table>
-
-> If videos do not auto-render in your viewer, the files are at [`docs/assets/demos/`](docs/assets/demos/).
 
 ---
 
