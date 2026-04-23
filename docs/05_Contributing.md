@@ -64,9 +64,12 @@ touch components/my_driver/my_driver.cpp
 idf_component_register(
     SRCS "my_driver.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES driver esp_log          # declare the IDF components you use
+    REQUIRES driver                  # public: types used in the header's API (e.g. gpio_num_t)
+    PRIV_REQUIRES log                # private: only used inside my_driver.cpp (ESP_LOGx macros)
 )
 ```
+
+**`REQUIRES` vs `PRIV_REQUIRES` rule:** a component belongs in `REQUIRES` only if its types, functions, or headers are part of your public interface (i.e., referenced in `include/my_driver.hpp`). Logging is almost always `PRIV_REQUIRES` because `ESP_LOGx` macros are called only inside the `.cpp` implementation file.
 
 The root `CMakeLists.txt` already auto-discovers `components/`, so no extra wiring is needed.
 

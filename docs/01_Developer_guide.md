@@ -31,6 +31,7 @@ Inside the container, the device always appears as `/dev/ttyACM0` regardless of 
 From the VS Code terminal **inside the container**:
 
 ```bash
+idf.py reconfigure
 idf.py build                              # Compile
 idf.py -p /dev/ttyACM0 flash monitor      # Flash + live logs (Ctrl+] to exit)
 idf.py fullclean && idf.py build          # Full rebuild

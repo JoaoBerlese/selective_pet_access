@@ -122,6 +122,7 @@ git clone git@github.com:<you>/selective_pet_access.git
 code selective_pet_access              # → click "Reopen in Container"
 
 # Inside the container:
+idf.py reconfigure
 idf.py build
 idf.py -p /dev/ttyACM0 flash monitor  # Ctrl+] to exit
 ```
