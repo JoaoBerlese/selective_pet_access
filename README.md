@@ -126,6 +126,10 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash monitor  # Ctrl+] to exit
 ```
 
+> **First build:** On a fresh clone `managed_components/` will be absent. Running `idf.py build` automatically invokes the ESP-IDF Component Manager, which restores all dependencies from `dependencies.lock` at their pinned versions — no manual step needed.
+>
+> **After updating `.devcontainer/`:** Open the Command Palette and run **Dev Containers: Rebuild Container**. Do not skip this — a stale container will silently use the old toolchain.
+
 Full walk-through: **[docs/01_Developer_guide.md](docs/01_Developer_guide.md)**.
 
 ---

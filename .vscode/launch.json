@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ESP-IDF: OpenOCD Debug",
+            "type": "espidf",
+            "request": "launch",
+            "debugPort": 3333,
+            "mode": "auto",
+            "verifyAppBinBeforeDebug": true,
+            // Critical for Docker: Doubles timeouts to handle USB passthrough latency
+            "tmoScaleFactor": 2, 
+            "initCommands": [
+                "mon reset halt",
+                "flushregs"
+            ]
+        }
+    ]
+}

@@ -12,7 +12,6 @@ sdkconfig.old
 
 # Dependency Management (IDF Component Manager)
 managed_components/
-dependencies.lock
 
 # Binary & Map files (just in case they end up outside build/)
 *.bin
@@ -24,13 +23,10 @@ flasher_args.json
 # ==============================================================================
 # Tooling & IDEs
 # ==============================================================================
-# VS Code: We commit settings/tasks/extensions, but NOT local user state.
-.vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/c_cpp_properties.json
+# VS Code: commit shared config files; ignore generated IntelliSense caches and user state.
+.vscode/ipch/
+.vscode/.browse.VC.db*
+.vscode/*.code-workspace
 
 # Clangd / LSP caches (if you use clangd extension)
 .clangd/

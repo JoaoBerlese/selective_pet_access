@@ -1,0 +1,28 @@
+{
+    // ========================================================================
+    //  Selective Pet Access - Workspace Settings
+    //  Target: ESP32-S3 (N16R8) | Tools: ESP-IDF v5.3 (Docker)
+    // ========================================================================
+
+    // --- Build & Format ---
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    
+    // Enforce strict Clang-Format usage
+    "C_Cpp.clang_format_style": "file",
+    "C_Cpp.formatting": "clangFormat",
+
+    // --- Critical: ESP32-S3 Flashing & Debugging ---
+    // Explicitly define the target so the IDE doesn't guess
+    "idf.adapterTargetName": "esp32s3",
+    
+    // OpenOCD Config for Native USB JTAG (Built-in)
+    // This enables the "F5" Debug button to work without external dongles
+    "idf.openOcdConfigs": [
+        "board/esp32s3-builtin.cfg"
+    ],
+    
+    // Force the port to the standard Docker mapping
+    "idf.port": "/dev/ttyACM0",
+    "idf.flashType": "UART" 
+}
