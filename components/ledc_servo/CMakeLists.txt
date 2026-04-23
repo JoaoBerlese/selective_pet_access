@@ -2,5 +2,6 @@
 idf_component_register(
     SRCS "ledc_servo.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES driver log
+    REQUIRES driver
+    PRIV_REQUIRES log
 )

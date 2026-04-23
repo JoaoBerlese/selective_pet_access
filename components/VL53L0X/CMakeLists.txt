@@ -2,5 +2,6 @@
 idf_component_register(
     SRCS "VL53L0X.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES freertos log i2c_bus
+    REQUIRES i2c_bus
+    PRIV_REQUIRES log
 )

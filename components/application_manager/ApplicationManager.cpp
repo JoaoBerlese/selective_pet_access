@@ -1,6 +1,7 @@
 #include "ApplicationManager.hpp"
 
 #include <esp_log.h>
+#include <esp_timer.h>
 
 namespace pet_access::core {
 

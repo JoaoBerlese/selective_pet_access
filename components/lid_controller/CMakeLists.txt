@@ -2,5 +2,6 @@
 idf_component_register(
     SRCS "lid_controller.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES ledc_servo log
+    REQUIRES freertos ledc_servo
+    PRIV_REQUIRES log
 )

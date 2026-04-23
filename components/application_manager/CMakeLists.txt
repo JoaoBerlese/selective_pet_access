@@ -2,6 +2,7 @@
 idf_component_register(
     SRCS "ApplicationManager.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES freertos log esp_timer
+    REQUIRES freertos
         telemetry_service lid_controller pet_tracking
+    PRIV_REQUIRES log esp_timer
 )

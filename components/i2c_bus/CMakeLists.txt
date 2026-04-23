@@ -2,5 +2,6 @@
 idf_component_register(
     SRCS "I2CMasterBus.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES driver freertos log rtos
+    REQUIRES driver freertos rtos
+    PRIV_REQUIRES log
 )

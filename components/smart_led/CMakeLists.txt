@@ -2,5 +2,6 @@
 idf_component_register(
     SRCS "smart_led.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES led_strip freertos log driver
+    REQUIRES led_strip freertos driver
+    PRIV_REQUIRES log
 )
