@@ -12,6 +12,13 @@ This document contains a shell script to automatically generate all required con
 ---
 
 ```bash
+#!/usr/bin/env bash
+# ==============================================================================
+# Selective Pet Access — Quickstart Scaffolding Script
+# Usage: bash quickstart_scaffolding.sh  (from the project root)
+# ==============================================================================
+set -euo pipefail  # Exit on error, unset var, or pipe failure
+
 # ==============================================================================
 # 1. Git Ignore Rules
 # ==============================================================================
@@ -106,7 +113,7 @@ EOF
 cat << 'EOF' > .devcontainer/devcontainer.json
 {
     "name": "ESP-IDF v5.3 Dev Env",
-    "image": "espressif/idf:release-v5.3",
+    "image": "espressif/idf:v5.3.4", // Pinned to specific patch: reproducible builds. Never use mutable 'release-vX.Y'.
     "containerEnv": {
         "LC_ALL": "C.UTF-8",
         "LANG": "C.UTF-8"
@@ -128,12 +135,17 @@ cat << 'EOF' > .devcontainer/devcontainer.json
         }
     },
     "runArgs": [
-        "--privileged",         // Required for USB JTAG access
-        "--device=/dev/ttyACM0" // Map USB device
+        // --privileged is required for OpenOCD to access USB-JTAG via libusb.
+        // The explicit --device flag is intentionally OMITTED: specifying
+        // --device=/dev/ttyACM0 causes Docker to refuse startup when the ESP32
+        // is not plugged in. --privileged already grants full host device access
+        // whenever the device is present, without hard-failing on absence.
+        "--privileged"
     ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
-    "postCreateCommand": "echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
+    // Idempotent: grep check prevents duplicate sourcing on container rebuild.
+    "postCreateCommand": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
 }
 
 /*
@@ -164,8 +176,6 @@ idf_component_register(SRCS "main.cpp"
 EOF
 
 cat << 'EOF' > main/main.cpp
-#include <cstdio>
-
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -175,7 +185,7 @@ static const char* TAG = "Main";
 extern "C" void app_main(void) {
     // C++20 Lambda verification
     auto print_status = []() {
-        ESP_LOGI(TAG, "System Running: FreeRTOS Scheduler Active (CPP20)");
+        ESP_LOGI(TAG, "System Running: FreeRTOS Scheduler Active (C++20)");
     };
 
     while (true) {
@@ -196,6 +206,9 @@ CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=n
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 EOF
@@ -229,7 +242,7 @@ AccessModifierOffset: -4      # public/private flush with class
 IndentWidth: 4                # 4 spaces is standard for C/C++ readability
 TabWidth: 4
 UseTab: Never                 # Tabs are evil. Always use spaces.
-# ColumnLimit: 120              # 80 is too narrow for verbose HAL/Templates
+ColumnLimit: 120              # 80 is too narrow for verbose HAL/Templates
 
 # --- Pointers & References ---
 # Modern C++ prefers the type to carry the pointer (int* p), not the variable.

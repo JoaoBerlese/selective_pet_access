@@ -119,7 +119,12 @@ Prereqs: VS Code · Docker · the Dev Containers extension · ESP32-S3 plugged i
 
 ```bash
 git clone git@github.com:<you>/selective_pet_access.git
-code selective_pet_access              # → click "Reopen in Container"
+cd selective_pet_access
+
+# Verify your host environment before opening VS Code (Docker, groups, USB):
+./tools/sanity_check.sh
+
+code .                                 # → click "Reopen in Container"
 
 # Inside the container:
 idf.py reconfigure

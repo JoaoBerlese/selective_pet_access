@@ -1,6 +1,6 @@
 {
     "name": "ESP-IDF v5.3 Dev Env",
-    "image": "espressif/idf:release-v5.3",
+    "image": "espressif/idf:v5.3.4", // Pinned to specific patch: reproducible builds. Never use mutable 'release-vX.Y'.
     "features": {
         "ghcr.io/devcontainers/features/node:1": {
             "version": "lts"
@@ -27,12 +27,19 @@
         }
     },
     "runArgs": [
-        "--privileged",         // Required for USB JTAG access
-        "--device=/dev/ttyACM0" // Map USB device
+        // --privileged is required for OpenOCD to access USB-JTAG via libusb.
+        // The explicit --device flag is intentionally OMITTED: specifying
+        // --device=/dev/ttyACM0 causes Docker to refuse startup when the ESP32
+        // is not plugged in. --privileged already grants full host device access
+        // whenever the device is present, without hard-failing on absence.
+        "--privileged"
     ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
-    "postCreateCommand": "echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
+    // Idempotent: grep check prevents duplicate sourcing on container rebuild.
+    // The espressif/idf ENTRYPOINT already sets IDF_PATH; this .bashrc line
+    // ensures idf.py is available in manually-opened interactive shells.
+    "postCreateCommand": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
 }
 
 /*

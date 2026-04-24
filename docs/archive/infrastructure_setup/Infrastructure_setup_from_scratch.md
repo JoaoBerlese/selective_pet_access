@@ -24,9 +24,12 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
 # 3. CRITICAL: Permission Setup
-# Adds your current user to the 'docker' group. 
-# This allows VS Code to talk to the daemon without 'sudo'.
+# 'docker' group: allows VS Code to talk to the daemon without 'sudo'.
 sudo usermod -aG docker $USER
+# 'dialout' group: required for serial port access (/dev/ttyACM0 is owned by
+# root:dialout). Without this, --device passthrough into Docker may still deny
+# access depending on host udev rules.
+sudo usermod -aG dialout $USER
 
 # 4. Activate Changes
 # Apply the group change immediately to the current terminal
@@ -192,7 +195,7 @@ This defines the "Source of Truth" for the build environment.
 ```json
 {
     "name": "ESP-IDF v5.3 Dev Env",
-    "image": "espressif/idf:release-v5.3",
+    "image": "espressif/idf:v5.3.4", // Pinned to specific patch: reproducible builds. Never use mutable 'release-vX.Y'.
     "containerEnv": {
         "LC_ALL": "C.UTF-8",
         "LANG": "C.UTF-8"
@@ -214,12 +217,19 @@ This defines the "Source of Truth" for the build environment.
         }
     },
     "runArgs": [
-        "--privileged",         // Required for USB JTAG access
-        "--device=/dev/ttyACM0" // Map USB device
+        // --privileged is required for OpenOCD to access USB-JTAG via libusb.
+        // The explicit --device flag is intentionally OMITTED: specifying
+        // --device=/dev/ttyACM0 causes Docker to refuse startup when the ESP32
+        // is not plugged in. --privileged already grants full host device access
+        // whenever the device is present, without hard-failing on absence.
+        "--privileged"
     ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
-    "postCreateCommand": "echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
+    // Idempotent: grep check prevents duplicate sourcing on container rebuild.
+    // The espressif/idf ENTRYPOINT already sets IDF_PATH; this .bashrc line
+    // ensures idf.py is available in manually-opened interactive shells.
+    "postCreateCommand": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
 }
 
 /*
@@ -230,7 +240,7 @@ This defines the "Source of Truth" for the build environment.
 
 ```
 
-> **Architect's Note:** The `postCreateCommand` automatically appends the IDF export script to `.bashrc`. This ensures that every new terminal session inside Docker has access to `idf.py` without manual sourcing.
+> **Architect's Note:** The `postCreateCommand` is idempotent — a `grep` guard ensures the export line is only appended once, regardless of how many times the container is rebuilt.
 
 ---
 
@@ -302,6 +312,9 @@ CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=n
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 ```
@@ -337,7 +350,7 @@ coredump, data, coredump,,        128K,
 * **Mechanism:** `ota_0` is the Factory/Active App. `ota_1` is the "Downloaded Update" slot. If an update fails, the bootloader safely rolls back to `ota_0`.
 
 **Local Storage (`storage`)**:
-* **9MB LittleFS:** Acts as the device's "Hard Drive."
+* **9MB LittleFS** *(partition subtype labeled `spiffs`)*: Acts as the device's "Hard Drive." The `spiffs` subtype (0x82) is intentionally reused — ESP-IDF has no dedicated LittleFS partition type. The LittleFS component formats and mounts this partition at runtime. SPIFFS is not used in this project.
 * **Purpose:** Stores the offline database (`cats.json`), system event logs, and potentially future assets.
 
 **Diagnostics (`coredump`)**:

@@ -44,14 +44,26 @@ ssh-keygen -t ed25519 -C "your.email@example.com"
 2. **Automate the SSH Agent:**
 Add this to your Host's `~/.bashrc` to ensure the agent runs automatically:
 ```bash
-if [ -z "$SSH_AUTH_SOCK" ]; then
+# Robust SSH agent startup.
+# Checks ssh-add -l instead of $SSH_AUTH_SOCK to handle two failure modes:
+#   1. No agent running ($SSH_AUTH_SOCK is unset).
+#   2. Stale socket: $SSH_AUTH_SOCK is set but points to a dead agent from
+#      a previous session — a silent failure that breaks git push.
+if ! ssh-add -l &>/dev/null; then
     eval "$(ssh-agent -s)" > /dev/null
-    ssh-add ~/.ssh/id_ed25519 2>/dev/null
+    ssh-add ~/.ssh/id_ed25519
 fi
 ```
 
 
 Apply it with `source ~/.bashrc`.
+
+**Architect's Note (Preferred Alternative):** Rather than the `.bashrc` hook, add the following to `~/.ssh/config`. This delegates agent management to `ssh` itself on first use and is more robust across shell environments (zsh, non-interactive shells, WSL2):
+```
+Host github.com
+    AddKeysToAgent yes
+    IdentityFile ~/.ssh/id_ed25519
+```
 3. **Retrieve the Public Key:**
 ```bash
 cat ~/.ssh/id_ed25519.pub
