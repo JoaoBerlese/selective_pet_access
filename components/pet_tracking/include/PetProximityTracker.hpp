@@ -82,7 +82,7 @@ private:
     std::array<uint8_t, 6> target_instance_id_;
     std::optional<bluetooth::MacAddress> known_mac_{std::nullopt};  // Mapped dynamically
 
-    // Thread-safe state variables
+    // Thread-safe state variables (shared across cores — must be atomic)
     std::atomic<ProximityState> proximity_state_{ProximityState::Unknown};
     std::atomic<float> current_rssi_{RSSI_WEAK_SIGNAL};  // Initialize to very weak signal
     std::atomic<uint16_t> battery_mv_{0};
@@ -90,6 +90,10 @@ private:
     std::atomic<TickType_t> rssi_updated_ticks_{0};  // Used also for last seen time to detect "Away" status
     std::atomic<TickType_t> battery_updated_ticks_{0};
     std::atomic<TickType_t> state_changed_ticks_{0};
+
+    // AtFeeder exit debounce state (task-private — only accessed from run_event_loop(); NOT atomic)
+    bool feeder_exit_pending_{false};
+    TickType_t feeder_exit_pending_since_{0};
 
     // Injected RTOS parameters
     UBaseType_t task_priority_;
@@ -116,6 +120,8 @@ private:
     static constexpr float RSSI_WEAK_SIGNAL = -100.0f;    // Default RSSI value when no signal is detected
     static constexpr float HYSTERESIS_MARGIN = 0.75f;     // Hysteresis margin to prevent rapid toggling
     static constexpr uint32_t TIMEOUT_MS = 5000;          // If no beacon seen for this long, consider the pet away
+    // Low-RSSI must persist this long before leaving AtFeeder
+    static constexpr uint32_t FEEDER_EXIT_DEBOUNCE_MS = 3000;
 };
 
 }  // namespace pet_access::tracking

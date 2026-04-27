@@ -229,7 +229,16 @@ void PetProximityTracker::update_ema_and_state(int8_t raw_rssi) {
             break;
         case ProximityState::AtFeeder:
             if (current_ema < (THRESHOLD_AT_FEEDER - HYSTERESIS_MARGIN)) {
-                next = ProximityState::Approaching;
+                if (!feeder_exit_pending_) {
+                    feeder_exit_pending_ = true;
+                    feeder_exit_pending_since_ = xTaskGetTickCount();
+                } else if (
+                    (xTaskGetTickCount() - feeder_exit_pending_since_) >= pdMS_TO_TICKS(FEEDER_EXIT_DEBOUNCE_MS)
+                ) {
+                    next = ProximityState::Approaching;
+                }
+            } else {
+                feeder_exit_pending_ = false;
             }
             break;
         default:
@@ -286,6 +295,7 @@ void PetProximityTracker::set_proximity_state(ProximityState new_state) {
     ProximityState current_state = proximity_state_.load(std::memory_order_acquire);
 
     if (current_state != new_state) {
+        feeder_exit_pending_ = false;
         proximity_state_.store(new_state, std::memory_order_release);
         state_changed_ticks_.store(xTaskGetTickCount(), std::memory_order_release);
 
