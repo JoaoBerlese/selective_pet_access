@@ -62,23 +62,45 @@ Task priorities are defined in `main/include/sys_config.hpp`. GPIO pin assignmen
 
 ## Coding Standards
 
-- **Modern C++20**: Use `constexpr`, `std::optional`, `std::span`. No `new`/`malloc` in application code.
-- **Static allocation**: FreeRTOS resources (tasks, mutexes, queues) allocated in `.bss` using static variants to avoid heap fragmentation.
-- **RAII is Law:** Manage all RTOS handles, hardware state, and Mutexes via constructors/destructors. **Never** use raw `xSemaphoreTake` or `xSemaphoreGive` in application logic. Instead, strictly use our custom `pet_access::rtos::LockGuard` in conjunction with `pet_access::rtos::StaticMutex`. 
-  - *Architectural Justification:* The `LockGuard` guarantees mutexes are released when a stack frame unwinds (e.g., early returns on `esp_err_t` checks), entirely eliminating the deadlocks common in C-style ESP-IDF code. 
-  - *Memory Constraints:* `StaticMutex` forces zero-heap allocation (`xSemaphoreCreateMutexStatic`). You **must** ensure these synchronization primitives are instantiated in internal SRAM (DRAM), NOT in the 8MB Octal PSRAM. Placing OS primitives in PSRAM causes severe scheduler latency during context switches due to cache misses. 
-  - Delete copy/move constructors for all resource-owning types (Rule of Five).
-- **No global state**: All dependencies injected via constructor parameters.
-- **Namespaces**: `pet_access::{bluetooth, sensors, actuators, services, tracking, core}`.
-- **Thread safety**: Document thread-safety guarantees in public headers. Use `std::atomic` for shared state; `[[nodiscard]]` on error-returning functions.
-- **Error Handling (Strict):** Exceptions and RTTI are **DISABLED** (`-fno-exceptions`, `-fno-rtti`). 
-  - **HAL/IDF Layer:** Default to returning and checking `esp_err_t` for all hardware interactions. Do not build massive C++ wrapper objects just to hide ESP-IDF return codes. 
-  - **Business Logic:** Use `std::optional` strictly for high-level APIs to eliminate C-style out-parameters (e.g., `std::optional<Temperature> get_reading()`).
-- **Memory Architecture & PSRAM:** The ESP32-S3 has 8MB Octal PSRAM. While static/stack allocation is preferred, any large data buffers (e.g., OTA chunks, large BLE payload arrays) must be explicitly mapped to PSRAM using `EXT_RAM_BSS_ATTR` for static allocations, or `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` if dynamic allocation is absolutely unavoidable. Be mindful of cache coherence and data alignment when passing PSRAM buffers to DMA-backed peripherals (like SPI/I2C).
+> **AUTHORITATIVE RULEBOOK:** All C++ code in this project MUST conform to **`docs/06_Firmware_Design_Guidelines.md`** ("The Berlese Standard"). The bullets below are a quick-reference summary; whenever a question is not answered here, defer to Document 06 — it is the source of truth, and its self-audit checklist (§13.2) is the merge gate.
+
+The five non-negotiable pillars (full detail in Document 06 §2):
+
+- **RAII is Law.** Use `pet_access::rtos::StaticMutex` + `pet_access::rtos::LockGuard` for every mutex. **Never** call raw `xSemaphoreTake` / `xSemaphoreGive` in application code. Resource-owning types delete copy and move (Rule of Five). `StaticMutex` lives in DRAM, never in PSRAM (cache-miss latency on context switch). See Document 06 §4.
+- **Zero-heap in steady state.** No `new` / `malloc` / `make_unique` / `make_shared` after boot. FreeRTOS primitives (queues, tasks) may be heap-allocated **only** during `SystemController` construction; after `app_main` exits, allocation must stop. Static/stack allocation is mandatory in task loops. See Document 06 §3.
+- **`esp_err_t` at HAL → `std::optional<T>` at the service boundary.** Every error-returning function carries `[[nodiscard]]`. Exceptions and RTTI are disabled (`-fno-exceptions`, `-fno-rtti`); zero `try` / `catch` / `throw` / `dynamic_cast`. `ESP_ERROR_CHECK` is reserved for boot-time fatal init only. See Document 06 §5.
+- **Decouple by interface, inject by reference.** New HAL drivers and services ship with an abstract `I*` interface from day one; concrete classes are declared `final : public IFoo`. References for mandatory dependencies, raw pointers for optional callbacks. No globals, no singletons — `SystemController` owns the world. See Document 06 §6.
+- **`ESP_LOGx` only, with a per-file `static const char* TAG`.** Never `printf` / `std::cout` / `fprintf`. Severity matrix: `LOGE` for hard failure, `LOGW` for recoverable degradation, `LOGI` for lifecycle, `LOGD` for per-iteration debug. See Document 06 §7.
+
+Standing rules (full detail in the cited sections):
+
+- **PSRAM placement** — OS primitives stay in DRAM; large (≥ 1 KB) static buffers use `EXT_RAM_BSS_ATTR` only when justified. DMA targets stay in DRAM unless the driver explicitly supports `MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA`. See Document 06 §3.2 and §3.5.
+- **Inter-core state** — `std::atomic<T>` with explicit `memory_order_acquire` / `release`. Default `seq_cst` is too strong on the ESP32-S3. See Document 06 §4.7.
+- **Task priorities** — declared once in `main/include/sys_config.hpp`; never hard-coded at the `xTaskCreatePinnedToCore` site. All application tasks pin to **Core 1**; Core 0 is reserved for the radio stack. See Document 06 §4.5.
+- **Namespaces** — `pet_access::{board, sys, core, i2c, sensors, actuators, ui, services, bluetooth, tracking, rtos}`. Future: `pet_access::{network, cloud}`.
+- **menuconfig workflow** — edit through `idf.py menuconfig`, then `idf.py save-defconfig`, then commit only the diff in `sdkconfig.defaults`. **Never** edit `sdkconfig` directly. See Document 06 §10.
+- **Style** — `.clang-format` (Google base, 4-space, 120 col, `PointerAlignment: Left`, `BinPackParameters: false`) is enforced on save in VS Code. See Document 06 §11.
+
+Before opening a PR, run through the self-audit checklist in **Document 06 §13.2** — every "no" is a merge blocker.
 
 ## Adding New Components
 
-Follow the pattern described in `docs/05_Contributing.md` §4. New hardware drivers belong in `components/`, must expose an abstract interface, and are wired up in `main/main.cpp`. Register the new component's directory in the root `CMakeLists.txt`.
+**The canonical template is `components/example_service/`.** Every new HAL driver, service, tracker, or orchestrator subsystem MUST start as a copy of these four files. This applies equally to human and agentic code generation — no other starting point is acceptable:
+
+- `components/example_service/include/IExampleService.hpp` — abstract interface (`I<Name>` plus an observer interface if the component publishes events).
+- `components/example_service/include/ExampleService.hpp` — concrete `final : public I<Name>` declaration with `Config` struct, Rule-of-Five deletion, `StaticMutex`, atomics, trampoline declarations.
+- `components/example_service/ExampleService.cpp` — implementation embodying the trampoline task pattern, `rtos::LockGuard` usage, atomic acquire/release publishing, and observer notification.
+- `components/example_service/CMakeLists.txt` — `REQUIRES` (public types) vs `PRIV_REQUIRES log` split.
+
+Workflow:
+
+1. Copy the four files above into `components/<your_name>/` and rename. Read them top to bottom before editing — every line is load-bearing per **Document 06 §12**.
+2. Add a priority constant to `main/include/sys_config.hpp` (**Document 06 §4.5**). Never hard-code priorities at task-creation sites.
+3. Wire the new component into `SystemController` in `main/main.cpp`, respecting member declaration order (**Document 06 §6.5**). The wiring recipe — `Config` struct, member declaration position, MIL entry, `start()` call — is spelled out in **Document 06 §12.5**.
+4. If your component lives in a sibling directory (like `components/bluetooth/`), append it to `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`.
+5. Self-audit against the checklist in **Document 06 §13.2** before opening the PR.
+
+The high-level walkthrough in `docs/05_Contributing.md` §4 remains a useful onboarding read, but **Document 06 §12 supersedes it** for any disagreement.
 
 ## Key Files
 
