@@ -24,5 +24,11 @@
     
     // Force the port to the standard Docker mapping
     "idf.port": "/dev/ttyACM0",
-    "idf.flashType": "UART" 
+    "idf.flashType": "UART",
+
+    // --- CMake Tools: Prevent auto-configuration conflict with idf.py ---
+    // Without these, CMake Tools picks "Unix Makefiles" on open, corrupting CMakeCache.txt.
+    "cmake.configureOnOpen": false,
+    "cmake.generator": "Ninja",
+    "cmake.showOptionsMovedNotification": false
 }

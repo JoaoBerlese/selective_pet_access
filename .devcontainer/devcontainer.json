@@ -16,7 +16,11 @@
                 "terminal.integrated.defaultProfile.linux": "bash",
                 "idf.espIdfPath": "/opt/esp/idf",
                 "idf.toolsPath": "/opt/esp/tools",
-                "idf.pythonBinPath": "/opt/esp/python_env/idf5.3_py3.10_env/bin/python"
+                "idf.pythonBinPath": "/opt/esp/python_env/idf5.3_py3.10_env/bin/python",
+                // Prevent CMake Tools from auto-configuring with "Unix Makefiles" on container open.
+                "cmake.configureOnOpen": false,
+                "cmake.generator": "Ninja",
+                "cmake.showOptionsMovedNotification": false
             },
             "extensions": [
                 "ms-vscode.cpptools",
