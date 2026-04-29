@@ -13,8 +13,10 @@ static const char* TAG = "LidController";
 // Lifecycle
 // =============================================================================
 
-LidController::LidController(actuators::LedcServo& servo, UBaseType_t task_priority, BaseType_t task_core)
-    : servo_(servo), task_priority_(task_priority), task_core_(task_core) {
+LidController::LidController(
+    actuators::LedcServo& servo, DiagnosticsService& diagnostics, UBaseType_t task_priority, BaseType_t task_core
+)
+    : servo_(servo), diagnostics_(diagnostics), task_priority_(task_priority), task_core_(task_core) {
     ESP_LOGI(TAG, "LidController constructed");
 }
 
@@ -37,12 +39,14 @@ esp_err_t LidController::initialize() {
     esp_err_t ret = servo_.set_angle(current_angle_);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set initial lid angle: %s", esp_err_to_name(ret));
+        diagnostics_.push_error_record(ErrorSource::Servo, ret);
         return ret;
     }
     vTaskDelay(pdMS_TO_TICKS(500));  // Allow time for physical movement
     ret = servo_.sleep();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to put servo to sleep: %s", esp_err_to_name(ret));
+        diagnostics_.push_error_record(ErrorSource::Servo, ret);
         return ret;
     }
 
@@ -105,11 +109,12 @@ void LidController::task_loop() {
     float target_angle = current_angle_;
     bool error_latched = false;
 
-    // Zero-cost abstraction: Inline lambda to handle latched error logging.
+    // Zero-cost abstraction: Inline lambda to handle latched error logging + diagnostics push.
     // This saves Flash (.rodata) by reusing the format string and provides exact context.
     auto log_latched_error = [&](const char* context, esp_err_t err) {
         if (!error_latched) {
             ESP_LOGE(TAG, "Hardware fault during %s: %s. Suppressing further logs.", context, esp_err_to_name(err));
+            diagnostics_.push_error_record(ErrorSource::Servo, err);
             error_latched = true;
         }
     };

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -13,6 +14,7 @@
 #include <array>
 #include <cstdint>
 
+#include "DiagnosticsService.hpp"
 #include "PetProximityTracker.hpp"
 #include "lid_controller.hpp"
 #include "telemetry_service.hpp"
@@ -48,6 +50,7 @@ public:
     ApplicationManager(
         services::LidController& lid,
         services::TelemetryService& telemetry,
+        services::DiagnosticsService& diagnostics,
         UBaseType_t task_priority,
         BaseType_t task_core = 1
     );
@@ -75,6 +78,7 @@ private:
     // Subsystem References (Injected)
     services::LidController& lid_controller_;
     services::TelemetryService& telemetry_service_;
+    services::DiagnosticsService& diagnostics_;
 
     // RTOS Task & Queue
     TaskHandle_t task_handle_{nullptr};

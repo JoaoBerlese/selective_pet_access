@@ -6,5 +6,6 @@ idf_component_register(
         i2c_bus AHT25 VL53L0X telemetry_service
         ledc_servo lid_controller
         nvs_flash nimble_scanner pet_tracking
+        diagnostics_service
         application_manager
 )

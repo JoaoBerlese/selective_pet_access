@@ -11,6 +11,7 @@
 
 // Local Project Dependencies
 #include "AHT25.hpp"
+#include "DiagnosticsService.hpp"
 #include "I2CMasterBus.hpp"
 #include "VL53L0X.hpp"
 #include "board_mapping.hpp"
@@ -51,10 +52,12 @@ public:
         , temp_humidity_sensor_(i2c_bus_)
         , distance_sensor_(i2c_bus_)  // Inject the shared I2C bus
         , lid_servo_(servo_config_)
-        // Inject sensors and priority into TelemetryService
-        , telemetry_service_(temp_humidity_sensor_, distance_sensor_, sys::PRIORITY_TELEMETRY)
-        , lid_controller_(lid_servo_, sys::PRIORITY_LID_CONTROLLER)
-        , app_manager_(lid_controller_, telemetry_service_, sys::PRIORITY_ORCHESTRATOR)
+        // diagnostics_ has no dependencies and must be constructed before any consumer.
+        , diagnostics_()
+        // Inject sensors, diagnostics, and priority into TelemetryService
+        , telemetry_service_(temp_humidity_sensor_, distance_sensor_, diagnostics_, sys::PRIORITY_TELEMETRY)
+        , lid_controller_(lid_servo_, diagnostics_, sys::PRIORITY_LID_CONTROLLER)
+        , app_manager_(lid_controller_, telemetry_service_, diagnostics_, sys::PRIORITY_ORCHESTRATOR)
         , pet_tracker_(
               ble_scanner_, ble_queue_.handle, CAT_COLLAR_INSTANCE_ID, sys::PRIORITY_PET_TRACKING, &app_manager_
           ) {}
@@ -75,16 +78,22 @@ public:
         ESP_ERROR_CHECK(err);
 
         // 3. Hardware Initialization for Sensors & Actuators
-        if (distance_sensor_.initialize() != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize VL53L0X distance sensor.");
+        esp_err_t dist_init_err = distance_sensor_.initialize();
+        if (dist_init_err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize VL53L0X distance sensor: %s", esp_err_to_name(dist_init_err));
+            diagnostics_.push_error_record(services::ErrorSource::DistanceSensor, dist_init_err);
         }
-        if (lid_servo_.initialize() != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize servo.");
+        esp_err_t servo_init_err = lid_servo_.initialize();
+        if (servo_init_err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize servo: %s", esp_err_to_name(servo_init_err));
+            diagnostics_.push_error_record(services::ErrorSource::Servo, servo_init_err);
         }
 
         // 4. Start Services
-        if (lid_controller_.initialize() != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize LidController.");
+        esp_err_t lid_init_err = lid_controller_.initialize();
+        if (lid_init_err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize LidController: %s", esp_err_to_name(lid_init_err));
+            diagnostics_.push_error_record(services::ErrorSource::LidController, lid_init_err);
         }
         telemetry_service_.start();
 
@@ -94,13 +103,17 @@ public:
 
         // 6. Initialize NimBLE Stack & Start Tracking
         ESP_LOGI(TAG, "Initializing BLE Subsystem...");
-        if (ble_scanner_.initialize() == ESP_OK) {
+        esp_err_t ble_init_err = ble_scanner_.initialize();
+        if (ble_init_err == ESP_OK) {
             // This will start scanning and feeding events into the queue,
             // which the tracker parses, and eventually triggers the Orchestrator callback.
             pet_tracker_.start();
             ESP_LOGI(TAG, "System Fully Armed and Operational.");
         } else {
-            ESP_LOGE(TAG, "CRITICAL: Failed to initialize BLE stack. Tracker offline.");
+            ESP_LOGE(
+                TAG, "CRITICAL: Failed to initialize BLE stack: %s. Tracker offline.", esp_err_to_name(ble_init_err)
+            );
+            diagnostics_.push_error_record(services::ErrorSource::BleScanner, ble_init_err);
             status_led_.set_static(50, 0, 0);  // Set LED to Red to indicate failure
         }
     }
@@ -147,15 +160,18 @@ private:
     sensors::VL53L0X distance_sensor_;
     actuators::LedcServo lid_servo_;
 
-    // --- 3. Middleware Services ---
+    // --- 3. Cross-Cutting Sink (declared first so middleware services can take it by ref) ---
+    services::DiagnosticsService diagnostics_;
+
+    // --- 4. Middleware Services ---
     services::TelemetryService telemetry_service_;
     services::LidController lid_controller_;
 
-    // --- 4. Core Business Logic (Orchestrator) ---
+    // --- 5. Core Business Logic (Orchestrator) ---
     // Must be declared after services so they are fully constructed before injection
     ApplicationManager app_manager_;
 
-    // --- 5. High-Level Tracker ---
+    // --- 6. High-Level Tracker ---
     // Must be declared after app_manager_ so it can receive the IProximityObserver pointer safely
     tracking::PetProximityTracker pet_tracker_;
 };

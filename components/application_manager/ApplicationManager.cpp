@@ -12,9 +12,17 @@ static const char* TAG = "AppManager";
 // =============================================================================
 
 ApplicationManager::ApplicationManager(
-    services::LidController& lid, services::TelemetryService& telemetry, UBaseType_t task_priority, BaseType_t task_core
+    services::LidController& lid,
+    services::TelemetryService& telemetry,
+    services::DiagnosticsService& diagnostics,
+    UBaseType_t task_priority,
+    BaseType_t task_core
 )
-    : lid_controller_(lid), telemetry_service_(telemetry), task_priority_(task_priority), task_core_(task_core) {
+    : lid_controller_(lid)
+    , telemetry_service_(telemetry)
+    , diagnostics_(diagnostics)
+    , task_priority_(task_priority)
+    , task_core_(task_core) {
     // Create the event queue. Sized for 10 events to easily handle bursts.
     event_queue_ = xQueueCreate(10, sizeof(SystemEvent));
     if (event_queue_ == nullptr) {
@@ -113,8 +121,13 @@ void ApplicationManager::process_proximity_change(tracking::ProximityState new_s
             if (current_state_ != SystemState::MealInProgress) {
                 ESP_LOGI(TAG, "FSM: Target at feeder. Opening Lid.");
 
-                // 1. Actuate Mechanics (Fire and Forget)
-                lid_controller_.open();
+                // 1. Actuate Mechanics. Capture esp_err_t, record but do NOT escalate
+                // to Fault — a transient servo error must not prevent the cat from eating.
+                esp_err_t open_err = lid_controller_.open();
+                if (open_err != ESP_OK) {
+                    ESP_LOGE(TAG, "LidController::open failed: %s", esp_err_to_name(open_err));
+                    diagnostics_.push_error_record(services::ErrorSource::LidController, open_err);
+                }
 
                 // 2. State Transition
                 current_state_ = SystemState::MealInProgress;
@@ -127,8 +140,13 @@ void ApplicationManager::process_proximity_change(tracking::ProximityState new_s
             if (current_state_ == SystemState::MealInProgress) {
                 ESP_LOGI(TAG, "FSM: Target departed. Closing Lid.");
 
-                // 1. Actuate Mechanics (Fire and Forget)
-                lid_controller_.close();
+                // 1. Actuate Mechanics. Capture esp_err_t, record but do NOT escalate
+                // to Fault — meal completion accounting still proceeds even if the lid actuation errored.
+                esp_err_t close_err = lid_controller_.close();
+                if (close_err != ESP_OK) {
+                    ESP_LOGE(TAG, "LidController::close failed: %s", esp_err_to_name(close_err));
+                    diagnostics_.push_error_record(services::ErrorSource::LidController, close_err);
+                }
 
                 // 2. Calculate Analytics
                 uint64_t now_us = esp_timer_get_time();

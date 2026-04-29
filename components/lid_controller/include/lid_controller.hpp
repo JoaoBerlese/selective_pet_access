@@ -12,6 +12,7 @@
 
 #include <cstdint>
 
+#include "DiagnosticsService.hpp"
 #include "ledc_servo.hpp"
 
 namespace pet_access::services {
@@ -21,10 +22,16 @@ public:
     /**
      * @brief Constructs the service with dependency injection of the HAL driver.
      * @param servo Reference to an already constructed LedcServo instance.
+     * @param diagnostics Reference to the DiagnosticsService for logging and error reporting.
      * @param task_priority Priority of the background task.
      * @param task_core Core on which the background task will run.
      */
-    LidController(actuators::LedcServo& servo, UBaseType_t task_priority, BaseType_t task_core = 1);
+    LidController(
+        actuators::LedcServo& servo,
+        DiagnosticsService& diagnostics,
+        UBaseType_t task_priority,
+        BaseType_t task_core = 1
+    );
 
     /**
      * @brief RAII Cleanup. Safely terminates the FreeRTOS task if running.
@@ -57,6 +64,7 @@ public:
 
 private:
     actuators::LedcServo& servo_;
+    DiagnosticsService& diagnostics_;
     TaskHandle_t task_handle_{nullptr};
 
     // Internal state tracking

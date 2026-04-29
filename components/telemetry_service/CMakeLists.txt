@@ -2,6 +2,6 @@
 idf_component_register(
     SRCS "telemetry_service.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES freertos AHT25 VL53L0X rtos
+    REQUIRES freertos AHT25 VL53L0X rtos diagnostics_service
     PRIV_REQUIRES log
 )

@@ -8,7 +8,8 @@
 #include <array>
 #include <optional>
 
-#include "AHT25.hpp"    // Assuming HAL class name
+#include "AHT25.hpp"  // Assuming HAL class name
+#include "DiagnosticsService.hpp"
 #include "VL53L0X.hpp"  // Assuming HAL class name
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -30,11 +31,16 @@ public:
      * @brief Constructs the service with dependency injection of the HAL driver.
      * @param temp_sensor Reference to an already constructed AHT25 temperature/humidity sensor instance.
      * @param dist_sensor Reference to an already constructed VL53L0X distance sensor instance.
+     * @param diagnostics Reference to the DiagnosticsService for logging and error reporting.
      * @param task_priority Priority of the background task.
      * @param task_core Core on which the background task will run.
      */
     TelemetryService(
-        sensors::AHT25& temp_sensor, sensors::VL53L0X& dist_sensor, UBaseType_t task_priority, BaseType_t task_core = 1
+        sensors::AHT25& temp_sensor,
+        sensors::VL53L0X& dist_sensor,
+        DiagnosticsService& diagnostics,
+        UBaseType_t task_priority,
+        BaseType_t task_core = 1
     );
 
     /**
@@ -57,6 +63,7 @@ public:
 private:
     sensors::AHT25& temp_sensor_;
     sensors::VL53L0X& dist_sensor_;
+    DiagnosticsService& diagnostics_;
 
     rtos::StaticMutex data_mutex_;
     TelemetryData current_data_{0.0f, 0.0f, 0, false};

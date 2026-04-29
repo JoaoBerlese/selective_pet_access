@@ -13,9 +13,17 @@ static const char* TAG = "TelemetryService";
 // =============================================================================
 
 TelemetryService::TelemetryService(
-    sensors::AHT25& temp_sensor, sensors::VL53L0X& dist_sensor, UBaseType_t task_priority, BaseType_t task_core
+    sensors::AHT25& temp_sensor,
+    sensors::VL53L0X& dist_sensor,
+    DiagnosticsService& diagnostics,
+    UBaseType_t task_priority,
+    BaseType_t task_core
 )
-    : temp_sensor_(temp_sensor), dist_sensor_(dist_sensor), task_priority_(task_priority), task_core_(task_core) {}
+    : temp_sensor_(temp_sensor)
+    , dist_sensor_(dist_sensor)
+    , diagnostics_(diagnostics)
+    , task_priority_(task_priority)
+    , task_core_(task_core) {}
 
 TelemetryService::~TelemetryService() {
     if (task_handle_ != nullptr) {
@@ -97,21 +105,25 @@ void TelemetryService::task_loop() {
         for (size_t i = 0; i < kSampleSize; ++i) {
             // AHT25
             sensors::AHT25::reading reading_values;
-            if (temp_sensor_.read(reading_values) == ESP_OK) {  // Assuming ESP_OK return
+            esp_err_t aht_err = temp_sensor_.read(reading_values);
+            if (aht_err == ESP_OK) {
                 temp_buffer[i] = reading_values.temperature;
                 hum_buffer[i] = reading_values.humidity;
             } else {
                 burst_success = false;
-                ESP_LOGW(TAG, "AHT25 sample %zu failed", i);
+                ESP_LOGW(TAG, "AHT25 sample %zu failed: %s", i, esp_err_to_name(aht_err));
+                diagnostics_.push_error_record(ErrorSource::TempSensor, aht_err);
             }
 
             // VL53L0X
             uint16_t dist = 0;
-            if (dist_sensor_.read_single_shot(dist) == ESP_OK) {  // Assuming ESP_OK return
+            esp_err_t vl_err = dist_sensor_.read_single_shot(dist);
+            if (vl_err == ESP_OK) {
                 dist_buffer[i] = dist;
             } else {
                 burst_success = false;
-                ESP_LOGW(TAG, "VL53L0X sample %zu failed", i);
+                ESP_LOGW(TAG, "VL53L0X sample %zu failed: %s", i, esp_err_to_name(vl_err));
+                diagnostics_.push_error_record(ErrorSource::DistanceSensor, vl_err);
             }
 
             // Yield between samples to allow lower priority tasks to run and avoid I2C bus saturation
