@@ -69,7 +69,7 @@ The five non-negotiable pillars (full detail in Document 06 §2):
 - **RAII is Law.** Use `pet_access::rtos::StaticMutex` + `pet_access::rtos::LockGuard` for every mutex. **Never** call raw `xSemaphoreTake` / `xSemaphoreGive` in application code. Resource-owning types delete copy and move (Rule of Five). `StaticMutex` lives in DRAM, never in PSRAM (cache-miss latency on context switch). See Document 06 §4.
 - **Zero-heap in steady state.** No `new` / `malloc` / `make_unique` / `make_shared` after boot. FreeRTOS primitives (queues, tasks) may be heap-allocated **only** during `SystemController` construction; after `app_main` exits, allocation must stop. Static/stack allocation is mandatory in task loops. See Document 06 §3.
 - **`esp_err_t` at HAL → `std::optional<T>` at the service boundary.** Every error-returning function carries `[[nodiscard]]`. Exceptions and RTTI are disabled (`-fno-exceptions`, `-fno-rtti`); zero `try` / `catch` / `throw` / `dynamic_cast`. `ESP_ERROR_CHECK` is reserved for boot-time fatal init only. See Document 06 §5.
-- **Decouple by interface, inject by reference.** New HAL drivers and services ship with an abstract `I*` interface from day one; concrete classes are declared `final : public IFoo`. References for mandatory dependencies, raw pointers for optional callbacks. No globals, no singletons — `SystemController` owns the world. See Document 06 §6.
+- **Concrete-first DI; abstract only when justified.** Concrete classes are the default for dependency injection — no `I*` interface unless §6 exception conditions apply (multiple runtime implementations, or a concrete test-mock requirement). Concrete classes are `final`; if an interface exists, the impl is `final : public IFoo`. References for mandatory dependencies, raw pointers for optional observer callbacks. No globals, no singletons — `SystemController` owns the world. See Document 06 §6.
 - **`ESP_LOGx` only, with a per-file `static const char* TAG`.** Never `printf` / `std::cout` / `fprintf`. Severity matrix: `LOGE` for hard failure, `LOGW` for recoverable degradation, `LOGI` for lifecycle, `LOGD` for per-iteration debug. See Document 06 §7.
 
 Standing rules (full detail in the cited sections):
@@ -87,14 +87,13 @@ Before opening a PR, run through the self-audit checklist in **Document 06 §13.
 
 **The canonical template is `components/example_service/`.** Every new HAL driver, service, tracker, or orchestrator subsystem MUST start as a copy of these four files. This applies equally to human and agentic code generation — no other starting point is acceptable:
 
-- `components/example_service/include/IExampleService.hpp` — abstract interface (`I<Name>` plus an observer interface if the component publishes events).
-- `components/example_service/include/ExampleService.hpp` — concrete `final : public I<Name>` declaration with `Config` struct, Rule-of-Five deletion, `StaticMutex`, atomics, trampoline declarations.
+- `components/example_service/include/ExampleService.hpp` — standalone concrete `final` class with `ExampleSample`, `IExampleObserver`, `Config` struct, Rule-of-Five deletion, `StaticMutex`, atomics, trampoline declarations. **No service-level `I*` interface** — YAGNI default (Document 06 §6.1). Add `IExampleService.hpp` only when §6.1 exception conditions apply.
 - `components/example_service/ExampleService.cpp` — implementation embodying the trampoline task pattern, `rtos::LockGuard` usage, atomic acquire/release publishing, and observer notification.
 - `components/example_service/CMakeLists.txt` — `REQUIRES` (public types) vs `PRIV_REQUIRES log` split.
 
 Workflow:
 
-1. Copy the four files above into `components/<your_name>/` and rename. Read them top to bottom before editing — every line is load-bearing per **Document 06 §12**.
+1. Copy the three files above into `components/<your_name>/` and rename. Read them top to bottom before editing — every line is load-bearing per **Document 06 §12**.
 2. Add a priority constant to `main/include/sys_config.hpp` (**Document 06 §4.5**). Never hard-code priorities at task-creation sites.
 3. Wire the new component into `SystemController` in `main/main.cpp`, respecting member declaration order (**Document 06 §6.5**). The wiring recipe — `Config` struct, member declaration position, MIL entry, `start()` call — is spelled out in **Document 06 §12.5**.
 4. If your component lives in a sibling directory (like `components/bluetooth/`), append it to `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`.

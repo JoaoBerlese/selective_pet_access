@@ -45,8 +45,8 @@ The standard is built on five mutually-reinforcing tenets, each detailed in §2.
 │                                              Boot-time heap is OK.  │
 │ 3. esp_err_t at HAL → optional<T>     (§5)  No exceptions, no RTTI. │
 │    at the service boundary                                          │
-│ 4. Decouple by interface, inject      (§6)  No globals. Every dep   │
-│    by reference                              flows through main.cpp │
+│ 4. Concrete-first DI; abstract only   (§6)  No globals. Every dep   │
+│    when §6.1 exception applies               flows through main.cpp │
 │ 5. ESP_LOGx with a per-file TAG       (§7)  No printf. Ever.        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -407,31 +407,40 @@ The toolchain is configured with `-fno-exceptions -fno-rtti`. There are zero `tr
 
 ## 6 · Decoupling & Dependency Injection
 
-### 6.1 Interface naming, virtual destructor, Rule of Five on the impl
+### 6.1 Concrete-first DI — the YAGNI default
 
-Abstract interfaces use the `I` prefix (`IBeaconScanner`, `IProximityObserver`, `IExampleService`). They:
+**Concrete classes are the default for dependency injection.** Do not create an abstract interface unless one of the two conditions in the exception rule below applies. Pass a concrete class by reference at the construction site; consumers reference the concrete type directly. This eliminates vtable overhead and avoids "interface-for-every-service" boilerplate that adds no value when exactly one implementation will ever exist.
 
-- Declare `virtual ~IFoo() = default;` (mandatory).
-- Do **not** delete copy/move on the interface itself — the concrete `final` class does that.
+**Exception — use an `I`-prefixed abstract interface only when:**
+
+1. **Multiple implementations coexist at runtime.** The canonical example is `IBeaconScanner` / `NimbleScanner` (Strategy Pattern): the scanning algorithm can be swapped without changing the tracker. A second concrete class must be plausible and planned, not merely hypothetical.
+2. **Unit-test isolation strictly requires a fake.** If a consumer cannot be tested without replacing the dependency at link time, an interface is justified. Document the test file that uses the mock; without a real test, the interface is YAGNI.
+
+**Observer callbacks are always abstract.** If a component pushes events to an upstream consumer (the Observer pattern), the callback contract is expressed as an `IFooObserver` class with a pure-virtual method. This rule is orthogonal to the service-interface rule above.
+
+When an interface **is** justified, it follows these rules:
+
+- Uses the `I` prefix (`IBeaconScanner`, `IProximityObserver`).
+- Declares `virtual ~IFoo() = default;` (mandatory).
+- Does **not** delete copy/move on the interface itself — the concrete `final` class does that.
 - Pure-virtual methods carry `[[nodiscard]]` if they return `esp_err_t` or `std::optional<T>`.
 
-Reference interfaces:
+Reference interfaces in the codebase:
 
-- `components/bluetooth/beacon_core/include/IBeaconScanner.hpp:11-22`
-- `components/pet_tracking/include/PetProximityTracker.hpp:36-45` (`IProximityObserver`)
-- `components/example_service/include/IExampleService.hpp` (canonical template — see §12)
+- `components/bluetooth/beacon_core/include/IBeaconScanner.hpp:11-22` (Strategy Pattern — multiple scanner implementations)
+- `components/pet_tracking/include/PetProximityTracker.hpp:36-45` (`IProximityObserver` — observer callback)
 
-### 6.2 Concrete classes are `final` and `: public IFoo`
+### 6.2 Concrete classes are `final`
 
 Concrete implementations:
 
-- Are marked `final` to enable devirtualization.
-- Inherit `: public IFoo`.
-- Delete copy and move (Rule of Five).
+- Are marked `final` to enable devirtualization and signal to readers that the type is a leaf.
+- Inherit `: public IFoo` **only when** an abstract interface is justified per §6.1.
+- Delete copy and move (Rule of Five) — they own a `TaskHandle_t`.
 
-Reference: `class NimbleScanner final : public IBeaconScanner` at `components/bluetooth/nimble_scanner/include/NimbleScanner.hpp:20`.
+Reference (with interface — justified by Strategy Pattern): `class NimbleScanner final : public IBeaconScanner` at `components/bluetooth/nimble_scanner/include/NimbleScanner.hpp:20`.
 
-Existing HAL drivers (`AHT25`, `VL53L0X`, `LedcServo`, `I2CMasterBus`) currently lack abstract interfaces — see Appendix A for migration notes. New HAL drivers and all new services **must** ship with an `I*` interface from day one.
+Reference (without interface — YAGNI default): `class ExampleService final` at `components/example_service/include/ExampleService.hpp`.
 
 ### 6.3 Constructor injection: references for mandatory, pointers for optional
 
@@ -604,9 +613,9 @@ Logging is always implementation-only. Putting `log` in `REQUIRES` leaks it to d
 # 1. Scaffold (from inside the dev container)
 mkdir -p components/<name>/include
 touch components/<name>/CMakeLists.txt
-touch components/<name>/include/I<Name>.hpp
-touch components/<name>/include/<Name>.hpp
+touch components/<name>/include/<Name>.hpp   # concrete header; see §12.2
 touch components/<name>/<Name>.cpp
+# Add I<Name>.hpp only if §6.1 exception conditions are met.
 
 # 2. Copy the canonical CMakeLists.txt template (§12.4)
 # 3. Wire it into SystemController in main/main.cpp (§12.5)
@@ -768,44 +777,22 @@ This component is the canonical reference. It exists for two reasons:
 
 It implements every tenet in §2 in one place: DI by reference, optional observer, `StaticMutex` + `LockGuard`, `std::atomic` with explicit memory order, `[[nodiscard]] esp_err_t` at HAL boundary, `std::optional<T>` at the service API, Rule of Five deletion, trampoline task pattern, injected priority/core, and zero heap in steady state.
 
-### 12.1 `components/example_service/include/IExampleService.hpp`
+### 12.1 Why no `IExampleService.hpp`
 
-```cpp
-/**
- * @file IExampleService.hpp
- * @author João Berlese
- * @brief Standard reference: abstract interface for a periodic, observable service.
- */
-#pragma once
+The canonical template deliberately omits a service-level abstract interface, applying the YAGNI default from §6.1: exactly one implementation of `ExampleService` will ever run on the device, and no unit test currently requires a fake. Adding `IExampleService` would:
 
-#include <esp_err.h>
+- Introduce a vtable on every `start()` / `get_latest_sample()` call with no benefit.
+- Force every consumer to include an extra header whose only purpose is describing a class that already exists.
+- Create the false impression that the interface is a meaningful seam when it maps 1:1 to a single concrete class.
 
-#include <cstdint>
-#include <optional>
+The observer callback (`IExampleObserver`) **is** kept abstract because it IS the extension point — consumers implement it to receive events. That is the observer pattern, which §6.1 explicitly permits.
 
-namespace pet_access::services {
+**When you later need a service interface** (e.g., a second hardware variant appears, or a test demands a fake), the migration is four lines:
 
-struct ExampleSample {
-    uint32_t sequence;
-    int32_t value;
-};
-
-class IExampleObserver {
-public:
-    virtual ~IExampleObserver() = default;
-    virtual void on_sample(const ExampleSample& sample) = 0;
-};
-
-class IExampleService {
-public:
-    virtual ~IExampleService() = default;
-
-    [[nodiscard]] virtual esp_err_t start() = 0;
-    [[nodiscard]] virtual std::optional<ExampleSample> get_latest_sample() const = 0;
-};
-
-}  // namespace pet_access::services
-```
+1. Create `include/IExampleService.hpp` with the pure-virtual surface (`start()`, `get_latest_sample()`).
+2. Change `class ExampleService final` → `class ExampleService final : public IExampleService`.
+3. Add `override` to the two public methods.
+4. Update `SystemController` to hold `IExampleService&` instead of `ExampleService&`.
 
 ### 12.2 `components/example_service/include/ExampleService.hpp`
 
@@ -821,12 +808,26 @@ public:
 #include <optional>
 
 #include "I2CMasterBus.hpp"
-#include "IExampleService.hpp"
 #include "rtos.hpp"
 
 namespace pet_access::services {
 
-class ExampleService final : public IExampleService {
+// ExampleSample and IExampleObserver live here (not in a separate I*.hpp)
+// because there is no service-level interface — see §12.1.
+
+struct ExampleSample {
+    uint32_t sequence;
+    int32_t value;
+};
+
+class IExampleObserver {
+public:
+    virtual ~IExampleObserver() = default;
+    virtual void on_sample(const ExampleSample& sample) = 0;
+};
+
+// No `: public IExampleService` — YAGNI (§6.1). One implementation exists; no test mock needed.
+class ExampleService final {
 public:
     struct Config {
         uint8_t i2c_address;
@@ -837,15 +838,15 @@ public:
     };
 
     ExampleService(i2c::I2CMasterBus& bus, const Config& config, IExampleObserver* observer = nullptr);
-    ~ExampleService() override;
+    ~ExampleService();
 
     ExampleService(const ExampleService&) = delete;
     ExampleService& operator=(const ExampleService&) = delete;
     ExampleService(ExampleService&&) = delete;
     ExampleService& operator=(ExampleService&&) = delete;
 
-    [[nodiscard]] esp_err_t start() override;
-    [[nodiscard]] std::optional<ExampleSample> get_latest_sample() const override;
+    [[nodiscard]] esp_err_t start();
+    [[nodiscard]] std::optional<ExampleSample> get_latest_sample() const;
 
 private:
     static void task_entry(void* arg);
@@ -1019,7 +1020,7 @@ if (example_service_.start() != ESP_OK) {
 }
 ```
 
-The component is then visible to the orchestrator (or any other consumer) via the `IExampleService&` interface, never via the concrete type.
+The component is then visible to the orchestrator (or any other consumer) via a `ExampleService&` reference to the concrete type. If a service-level interface is later justified per §6.1, replace the member type with `IExampleService&` at that point — no other call sites change.
 
 ---
 
@@ -1051,7 +1052,7 @@ For each row, the answer must be "yes" or "n/a (with reason)". A "no" blocks the
 | 5 | Every HAL method returning `esp_err_t` is `[[nodiscard]]`. | §5.1 |
 | 6 | Every service-layer query returns `std::optional<T>` (no out-parameters). | §5.2 |
 | 7 | No `try`, `catch`, `throw`, `dynamic_cast`. | §5.4 |
-| 8 | Every new HAL driver and service ships with an `I*` interface in its header. | §6.1, §6.2 |
+| 8 | If an `I*` interface was added, its presence is justified by §6.1 (multiple runtime impls or a concrete test-mock requirement). Concrete classes are the default — no interface needed without that justification. | §6.1, §6.2 |
 | 9 | Construction-time DI: references for mandatory deps, pointers for optional callbacks. No globals. | §6.3, §6.4 |
 | 10 | New tasks use the trampoline pattern, pin to Core 1, and inject priority/core via constructor. | §4.4, §4.5 |
 | 11 | New task priority added to `sys_config.hpp` (not hard-coded at the call site). | §4.5 |
@@ -1068,12 +1069,12 @@ The standard above is enforced for **new** code. The following existing componen
 
 | Component | Gap | Suggested fix |
 |---|---|---|
-| `components/AHT25/` | No abstract interface. | Introduce `ISensor<reading>` or a dedicated `IAHT25` and have `AHT25 final : public IAHT25`. |
-| `components/VL53L0X/` | No abstract interface. | Same shape as AHT25. |
-| `components/ledc_servo/` | No abstract interface. | Introduce `IServo` so `LidController` can be tested against a fake. |
-| `components/i2c_bus/` | No abstract interface. | Lower priority — `i2c_bus` is so thin that mocking it is rarely valuable. Consider only if testing forces it. |
-| `components/telemetry_service/` | No abstract interface. Not yet a `final` class. | Introduce `ITelemetryService` so `ApplicationManager` can hold `ITelemetryService&` instead of the concrete type. Mark `TelemetryService final`. |
-| `components/lid_controller/` | Same as telemetry. | Same fix. |
+| `components/AHT25/` | Not a `final` class. | Mark `AHT25 final`. An abstract interface is **not** needed under §6.1 — one implementation exists and no test mock is currently required. Add `IAHT25` only if a second sensor variant or a test fake materializes. |
+| `components/VL53L0X/` | Same as AHT25. | Same fix — mark `final`, defer interface until §6.1 conditions are met. |
+| `components/ledc_servo/` | Not a `final` class. | Mark `LedcServo final`. An `IServo` interface is warranted only when a test for `LidController` with a software fake is actually written. |
+| `components/i2c_bus/` | Not a `final` class. | Mark `I2CMasterBus final`. No interface needed — the bus is so thin that mocking it rarely adds value. |
+| `components/telemetry_service/` | Not yet a `final` class. | Mark `TelemetryService final`. No abstract interface needed — `ApplicationManager` holds a concrete `TelemetryService&`; add `ITelemetryService` only if a second implementation or test fake is introduced. |
+| `components/lid_controller/` | Same as telemetry. | Mark `LidController final`. Same rationale — defer interface until §6.1 forces it. |
 | All task-spawning components | Use `xTaskCreatePinnedToCore` (heap stack) instead of `xTaskCreateStaticPinnedToCore`. | **Intentional.** Codified in §3.4 / §4.8 — boot-time heap is allowed. No migration required. |
 | `components/bluetooth/nimble_scanner/` | Uses `xSemaphoreCreateBinary` (dynamic) instead of a static variant. | Justified by the NimBLE callback ordering — see the comment at `NimbleScanner.cpp:25-31`. No migration required. |
 | `sdkconfig.defaults` PSRAM lines | `CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY` is unset. | Correct. Leave unset until a buffer needs `EXT_RAM_BSS_ATTR`; only then enable it via menuconfig. |

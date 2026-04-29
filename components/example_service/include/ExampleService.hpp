@@ -1,7 +1,7 @@
 /**
  * @file ExampleService.hpp
  * @author João Berlese
- * @brief Standard reference: concrete implementation of IExampleService.
+ * @brief Standard reference: standalone concrete periodic service.
  *
  * Embodies every tenet of the Berlese Standard. See
  * docs/06_Firmware_Design_Guidelines.md §12 for the rationale behind every line.
@@ -13,6 +13,7 @@
  *   - Rule of Five: copy/move deleted (resource-owning type)
  *   - Trampoline task pattern; priority/core injected from sys_config.hpp
  *   - No new/malloc; no exceptions; no RTTI; no printf
+ *   - No service-level abstract interface: one impl exists, no test mock required (§6.1 YAGNI)
  */
 #pragma once
 
@@ -24,13 +25,41 @@
 #include <cstdint>
 #include <optional>
 
-#include "I2CMasterBus.hpp"     // example HAL dependency
-#include "IExampleService.hpp"  // public interface
-#include "rtos.hpp"             // pet_access::rtos::StaticMutex, LockGuard
+#include "I2CMasterBus.hpp"
+#include "rtos.hpp"  // pet_access::rtos::StaticMutex, LockGuard
 
 namespace pet_access::services {
 
-class ExampleService final : public IExampleService {
+/**
+ * @brief Snapshot returned by ExampleService::get_latest_sample().
+ *
+ * Trivially copyable so it can cross task boundaries by value (no heap, no aliasing).
+ */
+struct ExampleSample {
+    uint32_t sequence;  // Monotonically increasing per published sample
+    int32_t value;      // Domain-agnostic measurement payload
+};
+
+/**
+ * @brief Observer callback invoked whenever a new sample is published.
+ *
+ * @warning Implementations MUST NOT block. This method runs in the ExampleService
+ * task context. Forward the event to your own task via xQueueSend(timeout=0)
+ * or xTaskNotify and return immediately. See ApplicationManager::on_proximity_changed
+ * (components/application_manager/ApplicationManager.cpp) for the canonical bridging
+ * pattern.
+ *
+ * Observer interfaces are always abstract (§6.1): they represent the extension point
+ * that external consumers implement. This is orthogonal to the YAGNI rule for service
+ * interfaces.
+ */
+class IExampleObserver {
+public:
+    virtual ~IExampleObserver() = default;
+    virtual void on_sample(const ExampleSample& sample) = 0;
+};
+
+class ExampleService final {
 public:
     /**
      * @brief All tunables injected at construction. No #defines, no menuconfig
@@ -53,7 +82,7 @@ public:
     ExampleService(i2c::I2CMasterBus& bus, const Config& config, IExampleObserver* observer = nullptr);
 
     /// RAII cleanup; tears down the FreeRTOS task if running.
-    ~ExampleService() override;
+    ~ExampleService();
 
     // Rule of Five — resource-owning type, copy and move both forbidden.
     ExampleService(const ExampleService&) = delete;
@@ -61,9 +90,18 @@ public:
     ExampleService(ExampleService&&) = delete;
     ExampleService& operator=(ExampleService&&) = delete;
 
-    // ---- IExampleService ----------------------------------------------------
-    [[nodiscard]] esp_err_t start() override;
-    [[nodiscard]] std::optional<ExampleSample> get_latest_sample() const override;
+    /**
+     * @brief Start the background task. Must be called exactly once after construction.
+     * @return ESP_OK on success, ESP_ERR_INVALID_STATE if already started,
+     *         ESP_ERR_NO_MEM if FreeRTOS could not allocate the task.
+     */
+    [[nodiscard]] esp_err_t start();
+
+    /**
+     * @brief Thread-safe snapshot of the most recent sample.
+     * @return std::nullopt if no valid sample has been produced yet.
+     */
+    [[nodiscard]] std::optional<ExampleSample> get_latest_sample() const;
 
 private:
     // Trampoline: FreeRTOS C ABI -> C++ instance method.
