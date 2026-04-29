@@ -40,10 +40,18 @@
     ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
+    // Named volume (not a bind mount) so auth tokens and history survive container rebuilds.
+    "mounts": [
+        "source=claude-code-global-config,target=/root/.claude,type=volume"
+    ],
+    // Both commands are independent; object format runs them in parallel.
     // Idempotent: grep check prevents duplicate sourcing on container rebuild.
     // The espressif/idf ENTRYPOINT already sets IDF_PATH; this .bashrc line
     // ensures idf.py is available in manually-opened interactive shells.
-    "postCreateCommand": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc"
+    "postCreateCommand": {
+        "idf-export": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc",
+        "install-claude-code": "npm install -g @anthropic-ai/claude-code"
+    }
 }
 
 /*
