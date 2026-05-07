@@ -40,17 +40,19 @@
     ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
     "workspaceFolder": "/workspace",
-    // Named volume (not a bind mount) so auth tokens and history survive container rebuilds.
+    // Named volumes (not bind mounts) so auth tokens survive container rebuilds.
     "mounts": [
-        "source=claude-code-global-config,target=/root/.claude,type=volume"
+        "source=claude-code-global-config,target=/root/.claude,type=volume",
+        "source=gemini-cli-global-config,target=/root/.gemini,type=volume"
     ],
-    // Both commands are independent; object format runs them in parallel.
+    // All commands are independent; object format runs them in parallel.
     // Idempotent: grep check prevents duplicate sourcing on container rebuild.
     // The espressif/idf ENTRYPOINT already sets IDF_PATH; this .bashrc line
     // ensures idf.py is available in manually-opened interactive shells.
     "postCreateCommand": {
         "idf-export": "grep -qxF 'source /opt/esp/idf/export.sh' ~/.bashrc || echo 'source /opt/esp/idf/export.sh' >> ~/.bashrc",
-        "install-claude-code": "npm install -g @anthropic-ai/claude-code"
+        "install-claude-code": "npm install -g @anthropic-ai/claude-code",
+        "install-gemini-cli": "npm install -g @google/gemini-cli"
     }
 }
 

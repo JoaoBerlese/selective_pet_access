@@ -30,5 +30,6 @@
     // Without these, CMake Tools picks "Unix Makefiles" on open, corrupting CMakeCache.txt.
     "cmake.configureOnOpen": false,
     "cmake.generator": "Ninja",
-    "cmake.showOptionsMovedNotification": false
+    "cmake.showOptionsMovedNotification": false,
+    "idf.currentSetup": "/opt/esp/idf"
 }

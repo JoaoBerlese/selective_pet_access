@@ -157,9 +157,9 @@ git push -u origin main
 
 ---
 
-## §4 · Optional — Claude Code CLI inside the container
+## §4 · Optional — AI Assistants (Claude & Gemini) CLI inside the container
 
-The Espressif image ships without Node.js. To run the Claude Code CLI against this project without polluting the host, add the Node feature to `.devcontainer/devcontainer.json`:
+The Espressif image ships without Node.js. The Node feature in `.devcontainer/devcontainer.json` adds it:
 
 ```jsonc
 "features": {
@@ -167,14 +167,40 @@ The Espressif image ships without Node.js. To run the Claude Code CLI against th
 }
 ```
 
-Rebuild the container (`F1 → Dev Containers: Rebuild Container`), then from a container terminal:
+And the `postCreateCommand` installs both AI CLIs automatically on container create or rebuild — no manual install step needed:
 
-```bash
-npm install -g @anthropic-ai/claude-code
-claude login      # Ctrl+Click the auth URL; complete in host browser
+```json
+"install-claude-code": "npm install -g @anthropic-ai/claude-code",
+"install-gemini-cli":  "npm install -g @google/gemini-cli"
 ```
 
-The token is persisted in the container's home mount and survives the session; the host browser only handles the interactive login handshake.
+### First-time authentication
+
+Run these once inside a container terminal. Auth tokens are persisted in named Docker volumes (`claude-code-global-config` → `/root/.claude`, `gemini-cli-global-config` → `/root/.gemini`) and survive container rebuilds.
+
+**Claude Code:**
+```bash
+claude login      # Ctrl+Click the printed URL; complete in host browser
+```
+
+**Gemini CLI:**
+```bash
+gemini login
+```
+
+**Gemini — port-forwarding required:** the container has no display server, so `gemini login` tries to invoke `xdg-open` and fails with `ENOENT`. The OAuth redirect URL it prints contains a **random ephemeral port** (e.g., `http://127.0.0.1:35331/...`) that only exists inside the container. Simply pasting the URL into the host browser will fail because that port is not exposed.
+
+**Step-by-step:**
+1. Run `gemini login` in the container terminal. It will print a URL and hang waiting for the callback.
+2. Note the port number in the printed URL (e.g., `35331`).
+3. Open the VS Code **Ports** tab (bottom panel → *Ports*) and click **Forward a Port**. Enter the exact port number from step 2.
+4. Once the port is forwarded, copy the full URL from the terminal and open it in your **host** browser. Complete the Google OAuth flow normally.
+5. The terminal will unblock and confirm authentication.
+>
+**Noise suppression:** set `NO_BROWSER=true` in the terminal before running `gemini login` to prevent the `xdg-open` error from printing — it does not affect the OAuth flow itself:
+```bash
+NO_BROWSER=true gemini login
+```
 
 ---
 
