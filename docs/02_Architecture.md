@@ -18,6 +18,7 @@ flowchart LR
         LC["LidController<br/>50 Hz · prio 5"]
         SL["SmartLed<br/>prio 4"]
         TS["TelemetryService<br/>60 s · prio 3"]
+        WF["WiFiStationService<br/>prio 2"]
     end
 
     NB -- "BeaconEvent" --> Q[(BleEventQueue<br/>static, 16 slots)]
@@ -84,6 +85,7 @@ Declared in `main/include/sys_config.hpp`. Higher number = harder deadline.
 | 5 | `LidController` | 1 | 50 Hz | Servo PWM update cadence — visible jitter above ~20 ms |
 | 4 | `SmartLed` | 1 | event-driven | User-facing feedback; deadline is cosmetic |
 | 3 | `TelemetryService` | 1 | 60 s | Background I2C polling; lowest urgency |
+| 2 | `WiFiStationService` | 1 | event-driven (backoff) | Non-blocking Wi-Fi connection and exponential backoff retry |
 
 **Core split rationale.** BLE callbacks run on core 0 (where the controller is pinned); the tracker lives there to avoid cross-core IPC latency on every beacon packet. Everything else runs on core 1 so core 0 is free to service the radio.
 
@@ -135,6 +137,7 @@ If you add a new component, slot it in the declaration list at a position where 
 | `pet_access::ui` | `SmartLed` |
 | `pet_access::services` | `TelemetryService`, `LidController` |
 | `pet_access::tracking` | `PetProximityTracker`, `IProximityObserver` |
+| `pet_access::network` | `WiFiStationService`, `WiFiStatus`, `IWiFiObserver` |
 | `pet_access::core` | `SystemController`, `ApplicationManager` |
 | `pet_access::sys` | Task priorities (`sys_config.hpp`) |
 | `pet_access::board` | GPIO pin map (`board_mapping.hpp`) |

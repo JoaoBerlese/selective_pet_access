@@ -28,6 +28,7 @@ enum class ErrorSource : uint8_t {
     Servo = 3,
     LidController = 4,
     BleScanner = 5,
+    WiFi = 6,
 };
 
 // Cloud-ready record for a single error event.

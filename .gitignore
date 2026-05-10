@@ -10,6 +10,10 @@ build/
 sdkconfig
 sdkconfig.old
 
+# Personal/secret overrides — ESP-IDF auto-merges this on top of sdkconfig.defaults
+# if present. Holds Wi-Fi credentials and any other per-developer secrets.
+sdkconfig.defaults.local
+
 # Dependency Management (IDF Component Manager)
 managed_components/
 

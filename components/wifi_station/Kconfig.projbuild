@@ -1,0 +1,19 @@
+menu "Pet Access — Wi-Fi Station"
+
+    config PET_WIFI_SSID
+        string "Wi-Fi SSID"
+        default "YOUR_SSID_HERE"
+        help
+            SSID the WiFiStationService will associate with.
+            Read by main.cpp at construction time and copied into
+            WiFiStationService::Config — the component itself does not
+            include sdkconfig.h, keeping it DI-pure (Document 06 §6).
+
+    config PET_WIFI_PASSWORD
+        string "Wi-Fi Password"
+        default "YOUR_PASSWORD_HERE"
+        help
+            WPA2-PSK password for CONFIG_PET_WIFI_SSID.
+            Leave blank for an open network.
+
+endmenu

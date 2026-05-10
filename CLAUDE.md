@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Selective Pet Access** is safety-critical firmware for an automated pet door/feeder running on an **ESP32-S3-N16R8** microcontroller. It uses C++20, FreeRTOS SMP, and ESP-IDF v5.3.4. Key behaviors: BLE beacon scanning for pet proximity detection, servo-based lid control, and I2C sensor telemetry (temperature, humidity, feed level).
+**Selective Pet Access** is safety-critical firmware for an automated pet door/feeder running on an **ESP32-S3-N16R8** microcontroller. It uses C++20, FreeRTOS SMP, and ESP-IDF v5.3.4. Key behaviors: BLE beacon scanning for pet proximity detection, servo-based lid control, I2C sensor telemetry (temperature, humidity, feed level), and Wi-Fi STA connectivity (with exponential-backoff retry).
 
 ## Build & Flash Commands
 
@@ -34,7 +34,8 @@ The system follows a **layered hexagonal architecture** assembled in `main/main.
 2. **Services** (`telemetry_service/`, `lid_controller/`): Stateful business logic operating on top of HAL drivers.
 3. **Tracking** (`pet_tracking/`): `PetProximityTracker` translates raw BLE RSSI/beacon events into proximity state changes and notifies observers via `IProximityObserver`.
 4. **Orchestrator** (`application_manager/`): `ApplicationManager` is the core FSM. It receives proximity events and drives the lid and LED based on state.
-5. **Entry Point** (`main/main.cpp`): `SystemController` — constructs all components and wires them together.
+5. **Network** (`wifi_station/`): `WiFiStationService` provides non-blocking Wi-Fi STA connection with an exponential-backoff state machine. Lives in `pet_access::network`.
+6. **Entry Point** (`main/main.cpp`): `SystemController` — constructs all components and wires them together.
 
 ### FSM States
 ```
@@ -52,6 +53,7 @@ Fault  (hardware jam reserved state)
 | 5 | `LidController` (servo PWM loop @ 50Hz) | 1 |
 | 4 | `SmartLed` (visual feedback) | 1 |
 | 3 | `TelemetryService` (sensor poll @ 60s) | 1 |
+| 2 | `WiFiStationService` (Wi-Fi STA + exponential backoff) | 1 |
 
 Task priorities are defined in `main/include/sys_config.hpp`. GPIO pin assignments are the single source of truth in `main/include/board_mapping.hpp`.
 
@@ -77,7 +79,7 @@ Standing rules (full detail in the cited sections):
 - **PSRAM placement** — OS primitives stay in DRAM; large (≥ 1 KB) static buffers use `EXT_RAM_BSS_ATTR` only when justified. DMA targets stay in DRAM unless the driver explicitly supports `MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA`. See Document 06 §3.2 and §3.5.
 - **Inter-core state** — `std::atomic<T>` with explicit `memory_order_acquire` / `release`. Default `seq_cst` is too strong on the ESP32-S3. See Document 06 §4.7.
 - **Task priorities** — declared once in `main/include/sys_config.hpp`; never hard-coded at the `xTaskCreatePinnedToCore` site. All application tasks pin to **Core 1**; Core 0 is reserved for the radio stack. See Document 06 §4.5.
-- **Namespaces** — `pet_access::{board, sys, core, i2c, sensors, actuators, ui, services, bluetooth, tracking, rtos}`. Future: `pet_access::{network, cloud}`.
+- **Namespaces** — `pet_access::{board, sys, core, i2c, sensors, actuators, ui, services, bluetooth, tracking, rtos, network}`. Future: `pet_access::{cloud}`.
 - **menuconfig workflow** — edit through `idf.py menuconfig`, then `idf.py save-defconfig`, then commit only the diff in `sdkconfig.defaults`. **Never** edit `sdkconfig` directly. See Document 06 §10.
 - **Style** — `.clang-format` (Google base, 4-space, 120 col, `PointerAlignment: Left`, `BinPackParameters: false`) is enforced on save in VS Code. See Document 06 §11.
 

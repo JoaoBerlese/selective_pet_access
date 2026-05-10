@@ -30,4 +30,7 @@ constexpr UBaseType_t PRIORITY_LID_CONTROLLER = 5;  // 50Hz Servo update loop
 constexpr UBaseType_t PRIORITY_UI_LED = 4;     // Visual feedback
 constexpr UBaseType_t PRIORITY_TELEMETRY = 3;  // Background I2C sensor polling
 
+// 5. Background / Network
+constexpr UBaseType_t PRIORITY_WIFI_STATION = 2;  // Wi-Fi association & exponential-backoff retry
+
 }  // namespace pet_access::sys

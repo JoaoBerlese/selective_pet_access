@@ -3,17 +3,22 @@
 #include <cstdio>
 
 // ESP-IDF Framework & FreeRTOS
+#include <esp_event.h>
 #include <esp_log.h>
+#include <esp_netif.h>
+#include <esp_wifi_default.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 #include <nvs_flash.h>
+#include <sdkconfig.h>
 
 // Local Project Dependencies
 #include "AHT25.hpp"
 #include "DiagnosticsService.hpp"
 #include "I2CMasterBus.hpp"
 #include "VL53L0X.hpp"
+#include "WiFiStationService.hpp"
 #include "board_mapping.hpp"
 #include "ledc_servo.hpp"
 #include "lid_controller.hpp"
@@ -60,7 +65,8 @@ public:
         , app_manager_(lid_controller_, telemetry_service_, diagnostics_, sys::PRIORITY_ORCHESTRATOR)
         , pet_tracker_(
               ble_scanner_, ble_queue_.handle, CAT_COLLAR_INSTANCE_ID, sys::PRIORITY_PET_TRACKING, &app_manager_
-          ) {}
+          )
+        , wifi_service_(wifi_config_) {}
 
     // The single entry point to kick off the application logic
     void start() {
@@ -69,7 +75,7 @@ public:
         // 1. Signal a successful boot sequence (e.g., Solid green)
         status_led_.set_static(0, 30, 0);
 
-        // 2. Initialize NVS (Required for the Bluetooth Controller baseband)
+        // 2. Initialize NVS (Required for the Bluetooth Controller baseband and Wi-Fi calibration storage)
         esp_err_t err = nvs_flash_init();
         if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
             ESP_ERROR_CHECK(nvs_flash_erase());
@@ -77,7 +83,17 @@ public:
         }
         ESP_ERROR_CHECK(err);
 
-        // 3. Hardware Initialization for Sensors & Actuators
+        // 3. Network stack: lwIP + default event loop + the STA netif.
+        // WiFiStationService deliberately does NOT call these — they are system-wide singletons.
+        ESP_ERROR_CHECK(esp_netif_init());
+        ESP_ERROR_CHECK(esp_event_loop_create_default());
+        esp_netif_t* sta_netif = esp_netif_create_default_wifi_sta();
+        if (sta_netif == nullptr) {
+            ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta returned nullptr; aborting boot.");
+            abort();
+        }
+
+        // 4. Hardware Initialization for Sensors & Actuators
         esp_err_t dist_init_err = distance_sensor_.initialize();
         if (dist_init_err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize VL53L0X distance sensor: %s", esp_err_to_name(dist_init_err));
@@ -89,7 +105,7 @@ public:
             diagnostics_.push_error_record(services::ErrorSource::Servo, servo_init_err);
         }
 
-        // 4. Start Services
+        // 5. Start Services
         esp_err_t lid_init_err = lid_controller_.initialize();
         if (lid_init_err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize LidController: %s", esp_err_to_name(lid_init_err));
@@ -97,11 +113,11 @@ public:
         }
         telemetry_service_.start();
 
-        // 5. Start the Orchestrator FSM Task
+        // 6. Start the Orchestrator FSM Task
         ESP_LOGI(TAG, "Starting Application Manager FSM...");
         app_manager_.start();
 
-        // 6. Initialize NimBLE Stack & Start Tracking
+        // 7. Initialize NimBLE Stack & Start Tracking
         ESP_LOGI(TAG, "Initializing BLE Subsystem...");
         esp_err_t ble_init_err = ble_scanner_.initialize();
         if (ble_init_err == ESP_OK) {
@@ -115,6 +131,14 @@ public:
             );
             diagnostics_.push_error_record(services::ErrorSource::BleScanner, ble_init_err);
             status_led_.set_static(50, 0, 0);  // Set LED to Red to indicate failure
+        }
+
+        // 8. Bring up the Wi-Fi station (non-blocking; FSM task drives the connection lifecycle).
+        ESP_LOGI(TAG, "Starting Wi-Fi Station Service...");
+        esp_err_t wifi_err = wifi_service_.start();
+        if (wifi_err != ESP_OK) {
+            ESP_LOGE(TAG, "WiFiStationService start failed: %s", esp_err_to_name(wifi_err));
+            diagnostics_.push_error_record(services::ErrorSource::WiFi, wifi_err);
         }
     }
 
@@ -152,6 +176,17 @@ private:
         .max_angle_deg = 180.0f
     };
 
+    // SSID/password come from menuconfig; the component itself never #includes sdkconfig.h.
+    const network::WiFiStationService::Config wifi_config_{
+        .ssid = CONFIG_PET_WIFI_SSID,
+        .password = CONFIG_PET_WIFI_PASSWORD,
+        .initial_backoff_ms = 1000,
+        .max_backoff_ms = 60'000,
+        .task_priority = sys::PRIORITY_WIFI_STATION,
+        .task_core = 1,
+        .task_stack_size = 4096
+    };
+
     // --- 2. Low-Level Hardware Buses & Drivers ---
     bluetooth::NimbleScanner ble_scanner_;
     i2c::I2CMasterBus i2c_bus_;
@@ -174,6 +209,11 @@ private:
     // --- 6. High-Level Tracker ---
     // Must be declared after app_manager_ so it can receive the IProximityObserver pointer safely
     tracking::PetProximityTracker pet_tracker_;
+
+    // --- 7. Network ---
+    // Wi-Fi station manager. Caller (start()) is responsible for esp_netif_init,
+    // esp_event_loop_create_default, and esp_netif_create_default_wifi_sta before wifi_service_.start().
+    network::WiFiStationService wifi_service_;
 };
 
 }  // namespace pet_access::core

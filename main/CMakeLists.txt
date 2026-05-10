@@ -8,4 +8,5 @@ idf_component_register(
         nvs_flash nimble_scanner pet_tracking
         diagnostics_service
         application_manager
+        esp_netif esp_event esp_wifi wifi_station
 )

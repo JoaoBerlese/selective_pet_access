@@ -65,7 +65,7 @@ Each pillar is tested in §13 by a single yes/no question. A PR that fails any o
 │   ┌─────────────────────────────┼─────────────────────────────┐      │
 │   ▼                             ▼                             ▼      │
 │  Trackers                  Orchestrator                   Services   │
-│  (BLE, future WiFi)        (ApplicationManager FSM)   (Telemetry,   │
+│  (BLE, WiFi)               (ApplicationManager FSM)   (Telemetry,   │
 │       │                         │                       LidController│
 │       │                         │                       SmartLed)    │
 │       └─────────► IObserver ◄───┘                            │       │
@@ -81,7 +81,7 @@ Dependencies flow strictly downward. Higher layers never reach into lower layers
 
 ### 2.3 Threading model & core pinning policy
 
-Task priorities are the single source of truth in `main/include/sys_config.hpp:15-32`:
+Task priorities are the single source of truth in `main/include/sys_config.hpp:15-34`:
 
 | Priority | Symbol | Owner | Core | Notes |
 |---|---|---|---|---|
@@ -90,8 +90,9 @@ Task priorities are the single source of truth in `main/include/sys_config.hpp:1
 | 5 | `PRIORITY_LID_CONTROLLER` | `LidController` | 1 | 50 Hz servo loop. |
 | 4 | `PRIORITY_UI_LED` | `SmartLed` | 1 | Visual feedback. |
 | 3 | `PRIORITY_TELEMETRY` | `TelemetryService` | 1 | 60 s poll cadence. |
+| 2 | `PRIORITY_WIFI_STATION` | `WiFiStationService` | 1 | Event-driven Wi-Fi state machine with exponential backoff. |
 
-**Core pinning rule:** All application tasks pin to **Core 1 (APP_CPU)**. Core 0 (PRO_CPU) is reserved for the NimBLE host task, the WiFi stack (when added), and other ESP-IDF baseband work. **Do not** pin application tasks to Core 0 — you will starve the radio.
+**Core pinning rule:** All application tasks pin to **Core 1 (APP_CPU)**. Core 0 (PRO_CPU) is reserved for the NimBLE host task, the WiFi stack, and other ESP-IDF baseband work. **Do not** pin application tasks to Core 0 — you will starve the radio.
 
 **Adding a new task?** Add the priority constant to `sys_config.hpp` first, then inject it via the constructor. Never hard-code priorities at task-creation sites.
 
@@ -273,9 +274,9 @@ void MyService::task_loop() {
 
 ### 4.5 Task priorities — single source of truth in `sys_config.hpp`
 
-All five existing task priorities live in `main/include/sys_config.hpp:21-31`. **Do not** hard-code priority literals in components. Add a new constant to `sys_config.hpp`, then inject it through the constructor.
+All six existing task priorities live in `main/include/sys_config.hpp:21-34`. **Do not** hard-code priority literals in components. Add a new constant to `sys_config.hpp`, then inject it through the constructor.
 
-Why centralization matters: the priority hierarchy is a global property — Core 1 has only one runnable task at a time, and the wrong relative priority can deadlock the FSM (e.g., if the orchestrator runs at higher priority than the tracker, the tracker can never publish events). Reviewing all five priorities in one file makes that hierarchy auditable.
+Why centralization matters: the priority hierarchy is a global property — Core 1 has only one runnable task at a time, and the wrong relative priority can deadlock the FSM (e.g., if the orchestrator runs at higher priority than the tracker, the tracker can never publish events). Reviewing all six priorities in one file makes that hierarchy auditable.
 
 ### 4.6 Inter-task signaling: queues vs. `xTaskNotify` (when to pick which)
 
@@ -548,12 +549,12 @@ pet_access
 ├── services    TelemetryService, LidController, ExampleService, future cloud reporter
 ├── bluetooth   BeaconTypes, EddystoneParser, NimbleScanner, IBeaconScanner
 ├── tracking    PetProximityTracker, IProximityObserver
+├── network     WiFiStationService, WiFiStatus, IWiFiObserver
 └── rtos        StaticMutex, LockGuard
 ```
 
 Future namespaces for upcoming work:
 
-- `pet_access::network` — WiFi provisioning, station mode lifecycle, NTP.
 - `pet_access::cloud` — MQTT/HTTPS clients, telemetry uploaders, OTA bridge.
 
 ### 8.2 Component layout
@@ -1086,7 +1087,7 @@ The standard above is enforced for **new** code. The following existing componen
 
 **Reserved.** Will be populated in a separate update once the WiFi/Cloud module designs are finalized. Anticipated coverage:
 
-- WiFi station mode (`CONFIG_ESP_WIFI_*`).
+- WiFi station mode (`CONFIG_ESP_WIFI_*`). Includes custom wrapper flags: `CONFIG_PET_WIFI_SSID` and `CONFIG_PET_WIFI_PASSWORD` (kept in `.local`).
 - WPA2/WPA3 enterprise selection.
 - mbedTLS configuration (`CONFIG_MBEDTLS_*`) — enabling only the cipher suites our cloud endpoint requires, to keep the binary small.
 - HTTP client + HTTPS (`CONFIG_ESP_HTTP_CLIENT_*`).

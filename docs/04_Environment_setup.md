@@ -112,6 +112,39 @@ A clean run looks like:
 [WARN] No ESP32-S3 detected on USB.   ← safe to ignore until you're ready to flash
 ```
 
+### 2.9 · `sdkconfig.defaults.local` — local-only Wi-Fi credentials
+
+Canonical files:
+
+- [`components/wifi_station/Kconfig.projbuild`](../components/wifi_station/Kconfig.projbuild) — declares `CONFIG_PET_WIFI_SSID` and `CONFIG_PET_WIFI_PASSWORD` with **placeholder defaults** (`"YOUR_SSID_HERE"` / `"YOUR_PASSWORD_HERE"`). These are the values used by any fresh clone.
+- [`sdkconfig.defaults`](../sdkconfig.defaults) — committed, deliberately does **not** carry the Wi-Fi keys. `idf.py save-defconfig` only writes a key when its value differs from the Kconfig default; leaving the placeholders unmodified keeps `sdkconfig.defaults` clean of credentials by construction.
+- `sdkconfig.defaults.local` — per-developer, gitignored. Holds your real SSID/password.
+
+ESP-IDF's build system **automatically merges `sdkconfig.defaults.local` on top of `sdkconfig.defaults`** at configure time — no build-system changes are needed. Real credentials never enter version control.
+
+**First-time setup:**
+
+1. From the project root, create `sdkconfig.defaults.local`:
+   ```
+   CONFIG_PET_WIFI_SSID="my-home-2.4"
+   CONFIG_PET_WIFI_PASSWORD="my-wifi-password"
+   ```
+2. Rerun configure: `idf.py reconfigure && idf.py build`.
+3. On boot, the `WiFiStationService` log line should show your SSID and the device should reach the `Online` state.
+
+**Verify the file is ignored:**
+
+```bash
+git check-ignore -v sdkconfig.defaults.local
+# Expected: .gitignore:NN:sdkconfig.defaults.local   sdkconfig.defaults.local
+```
+
+**Hard rules:**
+
+- **Never** commit `sdkconfig.defaults.local`. The `.gitignore` rule prevents it, but `git add -f` would override.
+- **Never** run `idf.py save-defconfig` while your local SSID/password are loaded — it would write the real credentials into `sdkconfig.defaults` (because they now differ from the Kconfig placeholder defaults). If you genuinely need to capture an unrelated config tweak, temporarily blank out `CONFIG_PET_WIFI_SSID` / `CONFIG_PET_WIFI_PASSWORD` back to the Kconfig placeholders first, run `save-defconfig`, then restore your local file.
+- **Never** edit `sdkconfig` directly — same rule as §2.4. The local file is the only acceptable channel for personal credentials.
+
 ---
 
 ## §3 · Git & SSH (host → container)

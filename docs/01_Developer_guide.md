@@ -63,6 +63,7 @@ The hardware config is locked in `sdkconfig.defaults` (the source of truth). `sd
   idf.py menuconfig
   idf.py save-defconfig    # Persists to sdkconfig.defaults
   ```
+- **Personal Wi-Fi credentials** do *not* go in `sdkconfig.defaults`. Create a local-only `sdkconfig.defaults.local` with your own `CONFIG_PET_WIFI_SSID` / `CONFIG_PET_WIFI_PASSWORD` — ESP-IDF auto-merges it on top of the committed defaults. Full instructions: **[04 · Environment Setup §2.9](04_Environment_setup.md#29--sdkconfigdefaultslocal--local-only-wi-fi-credentials)**.
 
 ---
 
