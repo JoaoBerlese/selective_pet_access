@@ -167,7 +167,7 @@ void LidController::task_loop() {
 
             // Check if this step brought us to the final destination
             // If we've just reached the closed position, put the servo to sleep to save power.
-            if ((current_angle_ == target_angle) && (command == CMD_CLOSE)) {
+            if (current_angle_ == target_angle) {
                 ret = servo_.sleep();
                 if (ret != ESP_OK)
                     log_latched_error("target sleep", ret);

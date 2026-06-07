@@ -72,9 +72,9 @@ private:
     float angle_step_{0.0f};  // The fractional step per 20ms tick
 
     // Tunable Mechanical Constants
-    static constexpr float ANGLE_OPEN = 113.5f;
-    static constexpr float ANGLE_CLOSED = 5.0f;
-    static constexpr uint32_t TRANSITION_OPEN_TIME_MS = 2000;
+    static constexpr float ANGLE_OPEN = 150.0f;
+    static constexpr float ANGLE_CLOSED = 13.0f;
+    static constexpr uint32_t TRANSITION_OPEN_TIME_MS = 3000;
     static constexpr uint32_t TRANSITION_CLOSE_TIME_MS = 5000;
     static constexpr uint32_t UPDATE_INTERVAL_MS = 20;  // 50Hz - strictly aligns with LEDC PWM period
 
