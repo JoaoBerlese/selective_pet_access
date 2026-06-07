@@ -65,10 +65,12 @@ The lid has two mechanically defined positions. The servo config lives at `main/
 .max_angle_deg = 180.0f
 ```
 
+> **Inverted-logic branch:** the lid's resting position is flipped — it boots **open** and only **closes** while the blocked-cat beacon is at the feeder.
+
 | State | Photo |
 |---|---|
-| **Lid closed** — resting position. Default on boot and on 5 s inactivity. | ![Lid closed](assets/hardware/lid_close.jpg) |
-| **Lid open** — reached only when a registered beacon is within range and proximity is stable. | ![Lid open](assets/hardware/lid_open.jpg) |
+| **Lid open** — resting position. Default on boot and whenever the blocked-cat beacon is out of range. | ![Lid open](assets/hardware/lid_open.jpg) |
+| **Lid closed** — reached only when the blocked-cat beacon is within range and proximity is stable at the feeder. | ![Lid closed](assets/hardware/lid_close.jpg) |
 
 `LidController` runs a 50 Hz update loop (priority 5). Servo command updates below 20 ms are imperceptible to the mechanism; the loop is bound by PWM hardware, not by the FSM's decision rate.
 

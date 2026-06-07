@@ -21,17 +21,22 @@
 
 namespace pet_access::core {
 
-// Cloud-ready data structure for a single meal event
-struct MealRecord {
+// Cloud-ready data structure for a single block event (inverted-logic branch:
+// we record how long the unauthorized cat was kept out, not how long a meal lasted).
+struct BlockRecord {
     uint64_t start_time_us;
     uint32_t duration_ms;
     // Note: Cloud sync status will be added here in the next milestone
 };
 
+// Inverted-logic branch: the enum identifiers are unchanged for diff minimalism,
+// but their semantics are flipped — Standby/Approaching keep the lid OPEN
+// (default permissive), and MealInProgress means the blocked cat is at the feeder
+// and the lid is CLOSED.
 enum class SystemState {
-    Standby,
-    Approaching,     // Pet is near, but not eating. Good for waking up WiFi later.
-    MealInProgress,  // Pet is at the feeder, Lid is open.
+    Standby,         // No beacon in range; lid open (default permissive).
+    Approaching,     // Blocked-cat beacon approaching; lid still open. Good for waking up WiFi later.
+    MealInProgress,  // Blocked-cat beacon at the feeder; lid is CLOSED to deny access.
     Fault            // Reserved for hardware jams/errors.
 };
 
@@ -92,12 +97,12 @@ private:
     // Data Model: Latest Telemetry Snapshot (for continuous cloud feed)
     services::TelemetryData latest_telemetry_{};
 
-    uint64_t current_meal_start_us_{0};
-    // Data Model: Offline Meal Ring Buffer (Zero Heap Allocation)
-    static constexpr size_t MAX_OFFLINE_MEALS = 50;
-    std::array<MealRecord, MAX_OFFLINE_MEALS> meal_buffer_{};
-    size_t meal_buffer_head_{0};
-    size_t meal_buffer_count_{0};
+    uint64_t current_block_start_us_{0};
+    // Data Model: Offline Block Ring Buffer (Zero Heap Allocation)
+    static constexpr size_t MAX_OFFLINE_BLOCKS = 50;
+    std::array<BlockRecord, MAX_OFFLINE_BLOCKS> block_buffer_{};
+    size_t block_buffer_head_{0};
+    size_t block_buffer_count_{0};
 
     // RTOS Entry and Loop
     static void task_entry(void* arg);
@@ -108,7 +113,7 @@ private:
     void update_telemetry_snapshot();
 
     // Helpers
-    void push_meal_record(uint64_t start_us, uint32_t duration_ms);
+    void push_block_record(uint64_t start_us, uint32_t duration_ms);
 };
 
 }  // namespace pet_access::core

@@ -19,7 +19,7 @@ enum class ProximityState {
     Unknown,
     Away,         // Pet is out of range or far away
     Approaching,  // Pet is detected but not close enough yet
-    AtFeeder      // Pet is at the bowl (Trigger door open)
+    AtFeeder      // Pet is at the bowl (orchestrator decides the reaction)
 };
 
 // Unified telemetry payload. Returned by value for lock-free thread safety.
@@ -47,7 +47,8 @@ public:
 class PetProximityTracker {
 public:
     // Dependency Injection: Takes the scanner interface and the shared FreeRTOS queue.
-    // We pass the target Instance ID (myCat's collar) to filter out other beacons.
+    // We pass the target Instance ID (the blocked cat's collar in the inverted-logic branch)
+    // to filter out other beacons.
     PetProximityTracker(
         bluetooth::IBeaconScanner& scanner,
         QueueHandle_t beacon_queue,

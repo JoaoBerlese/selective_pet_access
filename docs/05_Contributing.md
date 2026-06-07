@@ -125,6 +125,6 @@ Public headers state, for each method, whether it is safe to call from:
 
 - `idf.py build` succeeds from a clean tree.
 - `clang-format -i` on every file you touched (VS Code's format-on-save handles this).
-- Flashed to hardware and observed the relevant FSM transition — unit of proof is "the lid opens when Frodo approaches", not "it compiles".
+- Flashed to hardware and observed the relevant FSM transition — unit of proof is a real lid actuation matching the branch's policy ("the lid opens when Frodo approaches" on `main`; "the lid closes when Cinnamon's beacon reaches the feeder" on `inverted_logic`), not "it compiles".
 - New public functions are `[[nodiscard]]` where applicable and document thread-safety.
 - No new files outside `components/`, `main/`, or `docs/`.

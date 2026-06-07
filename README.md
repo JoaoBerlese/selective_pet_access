@@ -2,6 +2,9 @@
 
 *Safety-critical firmware for an automated, BLE-gated pet feeder — ESP32-S3 · C++20 · FreeRTOS SMP.*
 
+> ### 🔄 Inverted-logic branch
+> This branch (`inverted_logic`) flips the access policy for experimentation. On `main` the **authorized** cat wears the beacon and the lid **opens on detect**. Here the **blocked** cat wears the beacon, the lid is **open by default**, and detection **closes** it. The narrative below describes this inverted behavior; the embedded videos still show the original `main` behavior.
+
 [![Platform](https://img.shields.io/badge/MCU-ESP32--S3--N16R8-E7352C?logo=espressif)](https://www.espressif.com/en/products/socs/esp32-s3)
 [![Framework](https://img.shields.io/badge/ESP--IDF-v5.3.4-E7352C)](https://docs.espressif.com/projects/esp-idf/en/v5.3.4/esp32s3/index.html)
 [![Language](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus)](https://en.cppreference.com/w/cpp/20)
@@ -18,7 +21,7 @@
 
 A real-world embedded system that solves a real problem: two cats, one feeder, and only **Frodo** is supposed to eat from it.
 
-The feeder continuously scans for BLE beacons. Frodo wears a beacon on his collar; when he approaches, the lid opens. Cinnamon, without a collar, is politely denied. The whole thing runs on an **ESP32-S3** with a strictly prioritized **FreeRTOS SMP** task model, ensuring the system responds within hard real-time deadlines: lid opens in the right moment, never stalls, never deadlocks.
+The feeder continuously scans for BLE beacons. On this branch, **Cinnamon** wears the beacon; the lid is open by default so **Frodo** (no collar) eats freely, and the lid closes only while Cinnamon is at the bowl. The whole thing runs on an **ESP32-S3** with a strictly prioritized **FreeRTOS SMP** task model, ensuring the system responds within hard real-time deadlines: the lid reacts in the right moment, never stalls, never deadlocks.
 
 The codebase is designed as a reference for **safety-critical firmware quality**: layered architecture, dependency injection, zero heap fragmentation, and a hermetic Docker build environment so any machine produces an identical binary.
 
@@ -50,7 +53,7 @@ The codebase is designed as a reference for **safety-critical firmware quality**
 
 ## ⚙️ How it works
 
-The firmware runs five concurrent FreeRTOS tasks at strictly ordered priorities. A BLE scanner feeds beacon events into a lock-free queue; a proximity tracker decides when the registered pet is close enough; the orchestrator state machine drives the lid and LED; a telemetry service polls temperature, humidity, and feed level in the background.
+The firmware runs five concurrent FreeRTOS tasks at strictly ordered priorities. A BLE scanner feeds beacon events into a lock-free queue; a proximity tracker decides when the tracked beacon is close enough; the orchestrator state machine drives the lid and LED (on this branch, *closing* it on detect instead of opening); a telemetry service polls temperature, humidity, and feed level in the background.
 
 The architecture is intentionally layered: hardware drivers are thin abstractions, business logic has no knowledge of the underlying hardware, and everything is wired together once through dependency injection at startup.
 
@@ -64,11 +67,11 @@ For a full technical breakdown — FSM, task priorities, memory model, and compo
   <tr>
     <td width="50%" align="center">
       <img src="docs/assets/hardware/lid_close.jpg" alt="Lid closed" width="100%"><br>
-      <sub><b>Lid closed</b> — resting position. Default on boot and after inactivity.</sub>
+      <sub><b>Lid closed</b> — reached only while the blocked-cat beacon is at the feeder.</sub>
     </td>
     <td width="50%" align="center">
       <img src="docs/assets/hardware/lid_open.jpg" alt="Lid open" width="100%"><br>
-      <sub><b>Lid open</b> — registered beacon in range, servo at commanded angle.</sub>
+      <sub><b>Lid open</b> — resting position. Default on boot and whenever the beacon is out of range.</sub>
     </td>
   </tr>
   <tr>
@@ -94,7 +97,7 @@ Full BOM, pin map, and partition layout: **[docs/03_Hardware.md](docs/03_Hardwar
   <tr>
     <td width="25%" align="center">
       <img src="docs/assets/pets/frodo_01.jpeg" alt="Frodo" width="100%"><br>
-      <sub><b>Frodo</b> — wears the BLE beacon collar. ✅ Authorized.</sub>
+      <sub><b>Frodo</b> — no collar on this branch. ✅ Free access.</sub>
     </td>
     <td width="25%" align="center">
       <img src="docs/assets/pets/frodo_02.jpeg" alt="Frodo" width="100%"><br>
@@ -102,7 +105,7 @@ Full BOM, pin map, and partition layout: **[docs/03_Hardware.md](docs/03_Hardwar
     </td>
     <td width="25%" align="center">
       <img src="docs/assets/pets/cinnamon_01.jpg" alt="Cinnamon" width="100%"><br>
-      <sub><b>Cinnamon</b> — no collar. 🚫 No access.</sub>
+      <sub><b>Cinnamon</b> — wears the BLE beacon on this branch. 🚫 Blocked.</sub>
     </td>
     <td width="25%" align="center">
       <img src="docs/assets/pets/cinnamon_02.jpg" alt="Cinnamon" width="100%"><br>

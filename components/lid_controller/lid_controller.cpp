@@ -34,8 +34,8 @@ esp_err_t LidController::initialize() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    // Force the hardware to sync with our initial assumption (Closed)
-    // We do a fast snap to the closed position on boot, then sleep.
+    // Force the hardware to sync with our initial assumption (Open in inverted-logic branch).
+    // We do a fast snap to the initial position on boot, then sleep.
     esp_err_t ret = servo_.set_angle(current_angle_);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set initial lid angle: %s", esp_err_to_name(ret));

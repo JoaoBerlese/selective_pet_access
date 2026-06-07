@@ -67,15 +67,17 @@ private:
     DiagnosticsService& diagnostics_;
     TaskHandle_t task_handle_{nullptr};
 
-    // Internal state tracking
-    float current_angle_{ANGLE_CLOSED};
+    // Internal state tracking.
+    // Inverted-logic branch: the lid boots OPEN (default permissive). The orchestrator
+    // closes it only when the blocked-cat beacon is detected at the feeder.
+    float current_angle_{ANGLE_OPEN};
     float angle_step_{0.0f};  // The fractional step per 20ms tick
 
     // Tunable Mechanical Constants
     static constexpr float ANGLE_OPEN = 150.0f;
     static constexpr float ANGLE_CLOSED = 13.0f;
-    static constexpr uint32_t TRANSITION_OPEN_TIME_MS = 3000;
-    static constexpr uint32_t TRANSITION_CLOSE_TIME_MS = 5000;
+    static constexpr uint32_t TRANSITION_OPEN_TIME_MS = 5000;
+    static constexpr uint32_t TRANSITION_CLOSE_TIME_MS = 2500;
     static constexpr uint32_t UPDATE_INTERVAL_MS = 20;  // 50Hz - strictly aligns with LEDC PWM period
 
     // Task Notification Commands

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Selective Pet Access** is safety-critical firmware for an automated pet door/feeder running on an **ESP32-S3-N16R8** microcontroller. It uses C++20, FreeRTOS SMP, and ESP-IDF v5.3.4. Key behaviors: BLE beacon scanning for pet proximity detection, servo-based lid control, I2C sensor telemetry (temperature, humidity, feed level), and Wi-Fi STA connectivity (with exponential-backoff retry).
 
+> **Branch policy — `inverted_logic`:** the access policy is flipped vs. `main`. The beacon is worn by the **blocked** cat (not the authorized one), the lid is **open by default**, and the FSM **closes** the lid while the beacon is at the feeder, reopening it once the cat departs. The `SystemState` enum identifiers are unchanged for minimal diff (`Standby`/`Approaching` = lid open; `MealInProgress` = lid closed / blocking). The meal-record ring buffer was renamed to `BlockRecord` / `block_buffer_` / `push_block_record` to reflect that it now records block durations, not meal durations. When working on this branch, preserve this inversion — do not "fix" log strings or lid calls back to the `main` semantics.
+
 ## Build & Flash Commands
 
 All builds run inside the Docker Dev Container (VS Code opens it automatically via `.devcontainer/`). No local ESP-IDF installation is required.
@@ -44,6 +46,7 @@ Standby ──> Approaching ──> MealInProgress
   └─── (5s inactivity timeout from any state)
 Fault  (hardware jam reserved state)
 ```
+On the `inverted_logic` branch the structure is unchanged but the lid mapping is flipped: `Standby`/`Approaching` keep the lid **open**, and `MealInProgress` drives the lid **closed** to block the beacon-wearing cat. The 5s inactivity timeout therefore reopens the lid (returning to default permissive) instead of closing it.
 
 ### FreeRTOS Task Priorities (higher = harder deadline)
 | Priority | Task | Core |

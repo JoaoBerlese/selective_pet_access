@@ -41,8 +41,11 @@ static const char* TAG = "Main";
 // =============================================================================
 namespace pet_access::core {
 
-// Predefined Instance ID for myCat's collar (Eddystone UID Frame)
-// This is the "serial number" part of the UID frame that uniquely identifies the pet's collar.
+// Predefined Instance ID for the tracked collar (Eddystone UID Frame).
+// This is the "serial number" part of the UID frame that uniquely identifies the beacon hardware.
+// Inverted-logic branch: the same physical beacon is now worn by the BLOCKED cat — detection
+// triggers the lid to CLOSE. The byte sequence is unchanged because the hardware ID does not move
+// with the cat, only the collar does.
 constexpr std::array<uint8_t, 6> CAT_COLLAR_INSTANCE_ID = {0xFD, 0xA5, 0x06, 0x93, 0xA4, 0xE2};
 
 class SystemController {

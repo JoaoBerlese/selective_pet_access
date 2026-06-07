@@ -115,55 +115,56 @@ void ApplicationManager::handle_event(const SystemEvent& event) {
 }
 
 void ApplicationManager::process_proximity_change(tracking::ProximityState new_state) {
-    // FSM State Transition Logic
+    // FSM State Transition Logic (inverted-logic branch:
+    //   beacon == blocked cat; lid is OPEN by default; CLOSE only while the blocked cat is at the feeder).
     switch (new_state) {
         case tracking::ProximityState::AtFeeder:
             if (current_state_ != SystemState::MealInProgress) {
-                ESP_LOGI(TAG, "FSM: Target at feeder. Opening Lid.");
+                ESP_LOGI(TAG, "FSM: Blocked cat at feeder. Closing lid.");
 
                 // 1. Actuate Mechanics. Capture esp_err_t, record but do NOT escalate
-                // to Fault — a transient servo error must not prevent the cat from eating.
-                esp_err_t open_err = lid_controller_.open();
-                if (open_err != ESP_OK) {
-                    ESP_LOGE(TAG, "LidController::open failed: %s", esp_err_to_name(open_err));
-                    diagnostics_.push_error_record(services::ErrorSource::LidController, open_err);
-                }
-
-                // 2. State Transition
-                current_state_ = SystemState::MealInProgress;
-                current_meal_start_us_ = esp_timer_get_time();
-            }
-            break;
-
-        case tracking::ProximityState::Away:
-        case tracking::ProximityState::Approaching:
-            if (current_state_ == SystemState::MealInProgress) {
-                ESP_LOGI(TAG, "FSM: Target departed. Closing Lid.");
-
-                // 1. Actuate Mechanics. Capture esp_err_t, record but do NOT escalate
-                // to Fault — meal completion accounting still proceeds even if the lid actuation errored.
+                // to Fault — a transient servo error must not lock the lid against the authorized cat.
                 esp_err_t close_err = lid_controller_.close();
                 if (close_err != ESP_OK) {
                     ESP_LOGE(TAG, "LidController::close failed: %s", esp_err_to_name(close_err));
                     diagnostics_.push_error_record(services::ErrorSource::LidController, close_err);
                 }
 
+                // 2. State Transition
+                current_state_ = SystemState::MealInProgress;
+                current_block_start_us_ = esp_timer_get_time();
+            }
+            break;
+
+        case tracking::ProximityState::Away:
+        case tracking::ProximityState::Approaching:
+            if (current_state_ == SystemState::MealInProgress) {
+                ESP_LOGI(TAG, "FSM: Blocked cat departed. Reopening lid.");
+
+                // 1. Actuate Mechanics. Capture esp_err_t, record but do NOT escalate
+                // to Fault — block accounting still proceeds even if the lid actuation errored.
+                esp_err_t open_err = lid_controller_.open();
+                if (open_err != ESP_OK) {
+                    ESP_LOGE(TAG, "LidController::open failed: %s", esp_err_to_name(open_err));
+                    diagnostics_.push_error_record(services::ErrorSource::LidController, open_err);
+                }
+
                 // 2. Calculate Analytics
                 uint64_t now_us = esp_timer_get_time();
-                uint32_t duration_ms = static_cast<uint32_t>((now_us - current_meal_start_us_) / 1000);
+                uint32_t duration_ms = static_cast<uint32_t>((now_us - current_block_start_us_) / 1000);
 
-                push_meal_record(current_meal_start_us_, duration_ms);
-                ESP_LOGI(TAG, "Meal recorded. Duration: %lu ms", duration_ms);
+                push_block_record(current_block_start_us_, duration_ms);
+                ESP_LOGI(TAG, "Block recorded. Duration: %lu ms", duration_ms);
 
                 // 3. State Transition
                 current_state_ = (new_state == tracking::ProximityState::Approaching) ? SystemState::Approaching
                                                                                       : SystemState::Standby;
             } else if (new_state == tracking::ProximityState::Approaching && current_state_ == SystemState::Standby) {
                 // Optional: Wake up WiFi or prepare systems here
-                ESP_LOGI(TAG, "FSM: Target approaching. System Standby -> Approaching.");
+                ESP_LOGI(TAG, "FSM: Blocked cat approaching. System Standby -> Approaching.");
                 current_state_ = SystemState::Approaching;
             } else if (new_state == tracking::ProximityState::Away && current_state_ == SystemState::Approaching) {
-                ESP_LOGI(TAG, "FSM: Target walked away. System Approaching -> Standby.");
+                ESP_LOGI(TAG, "FSM: Blocked cat walked away. System Approaching -> Standby.");
                 current_state_ = SystemState::Standby;
             }
             break;
@@ -194,16 +195,16 @@ void ApplicationManager::update_telemetry_snapshot() {
 // Helpers
 // =============================================================================
 
-void ApplicationManager::push_meal_record(uint64_t start_us, uint32_t duration_ms) {
+void ApplicationManager::push_block_record(uint64_t start_us, uint32_t duration_ms) {
     // Ring buffer insertion
-    meal_buffer_[meal_buffer_head_] = MealRecord{.start_time_us = start_us, .duration_ms = duration_ms};
+    block_buffer_[block_buffer_head_] = BlockRecord{.start_time_us = start_us, .duration_ms = duration_ms};
 
     // Advance head, wrap around if necessary
-    meal_buffer_head_ = (meal_buffer_head_ + 1) % MAX_OFFLINE_MEALS;
+    block_buffer_head_ = (block_buffer_head_ + 1) % MAX_OFFLINE_BLOCKS;
 
     // Keep count up to max capacity
-    if (meal_buffer_count_ < MAX_OFFLINE_MEALS) {
-        meal_buffer_count_++;
+    if (block_buffer_count_ < MAX_OFFLINE_BLOCKS) {
+        block_buffer_count_++;
     }
 }
 

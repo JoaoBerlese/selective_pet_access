@@ -52,13 +52,15 @@ Everything is assembled in `main/main.cpp` by `pet_access::core::SystemControlle
 
 The feeder has four states. The transitions are driven entirely by `IProximityObserver` callbacks fired by `PetProximityTracker` and by a 5-second inactivity timer inside `ApplicationManager`.
 
+> **Inverted-logic branch:** The enum identifiers (`Standby`, `Approaching`, `MealInProgress`) are unchanged, but their lid mapping is flipped. `Standby`/`Approaching` now hold the lid **open** (default permissive); `MealInProgress` means the blocked-cat beacon is at the feeder and the lid is **closed**.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Standby
-    Standby --> Approaching: registered beacon<br/>within range
-    Approaching --> MealInProgress: beacon stable &<br/>lid fully open
-    MealInProgress --> Standby: 5 s inactivity
-    Approaching --> Standby: 5 s inactivity
+    Standby --> Approaching: blocked-cat beacon<br/>within range
+    Approaching --> MealInProgress: beacon at the feeder<br/>(lid closes)
+    MealInProgress --> Standby: blocked cat departs<br/>(lid reopens)
+    Approaching --> Standby: blocked cat walks away
     Standby --> Fault: hardware jam<br/>(reserved)
     MealInProgress --> Fault: hardware jam<br/>(reserved)
 ```
@@ -67,8 +69,8 @@ The two visible FSM states map to physical lid positions:
 
 | State | Lid position | Photo |
 |---|---|---|
-| `Standby`, `Approaching` (pre-open) | Closed | ![Lid closed](assets/hardware/lid_close.jpg) |
-| `MealInProgress` | Open | ![Lid open](assets/hardware/lid_open.jpg) |
+| `Standby`, `Approaching` | Open | ![Lid open](assets/hardware/lid_open.jpg) |
+| `MealInProgress` | Closed | ![Lid closed](assets/hardware/lid_close.jpg) |
 
 `Fault` is reserved for a future jam-detection path (servo stall current + distance sensor disagreement). It is declared but not yet entered by any transition.
 
